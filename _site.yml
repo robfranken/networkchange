@@ -1,0 +1,21 @@
+name: "Network stability and change among emerging students"
+#exclude: ["data"]
+navbar:
+  left:
+    - icon: fa-home
+      href: index.html
+    - text: "Preparation"
+      href: prep.html
+    - text: "Descriptives"
+      href: des.html
+  right:
+    - icon: fab fa-github
+      href: https://github.com/robfranken/networkchange
+output:
+  html_document:
+    theme: flatly
+    highlight: default
+    include:
+      after_body: footer.html
+output_dir: "docs"
+

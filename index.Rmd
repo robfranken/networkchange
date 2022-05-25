@@ -1,0 +1,75 @@
+---
+title: "Stability and change in personal networks of emerging students"
+bibliography: references.bib
+output: 
+  html_document:
+    css: tweaks.css
+    toc:  false
+    toc_float: true
+    number_sections: false
+ 
+---
+
+```{r, globalsettings, echo=FALSE, warning=FALSE, results='hide'}
+library(knitr)
+
+knitr::opts_chunk$set(echo = TRUE)
+opts_chunk$set(tidy.opts=list(width.cutoff=100),tidy=TRUE, warning = FALSE, message = FALSE,comment = "#>", cache=TRUE, class.source=c("test"), class.output=c("test2"))
+options(width = 100)
+rgl::setupKnitr()
+
+
+
+colorize <- function(x, color) {sprintf("<span style='color: %s;'>%s</span>", color, x) }
+
+```
+
+```{r klippy, echo=FALSE, include=TRUE}
+klippy::klippy(position = c('top', 'right'))
+#klippy::klippy(color = 'darkred')
+#klippy::klippy(tooltip_message = 'Click to copy', tooltip_success = 'Done')
+```
+
+
+
+
+----
+
+:::::::::::::: {.columns}
+::: {.column width="50%"}
+
+# **Lab Journal**
+### Rob Franken - Radboud University
+Last compiled on `r format(Sys.time(), '%B, %Y')`
+
+<br>
+
+----
+  
+This website is a supplement to the paper on stability and change in personal networks by @Franken2022. It contains R code. 
+All scripts can be found on [Github](https://github.com/robfranken/network_stability)
+
+Use the top menu to navigate to ...
+
+:::
+::: {.column width="50%"}
+
+![](images/egonet.png)
+
+:::
+::::::::::::::
+----
+
+## Contact  
+
+Questions can be addressed to the first author of the corresponding article, Rob Franken (rob.franken@ru.nl).
+  
+----
+
+## References
+
+
+
+
+
+

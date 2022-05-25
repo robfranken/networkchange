@@ -1,0 +1,70 @@
+---
+title: "Descriptives"
+bibliography: references.bib
+date: "Last compiled on `r format(Sys.time(), '%B, %Y')`"
+output: 
+  html_document:
+    css: tweaks.css
+    toc:  true
+    toc_float: true
+    number_sections: false
+    toc_depth: 1
+    code_folding: show
+    code_download: yes
+---
+  
+```{r echo=FALSE, warning=FALSE, results='hide', message=FALSE}
+library(knitr)
+library(dplyr)
+knitr::opts_chunk$set(echo = TRUE)
+opts_chunk$set(tidy.opts=list(width.cutoff=100),tidy=TRUE, warning = FALSE, message = FALSE,comment = FALSE, cache=TRUE, class.source=c("test2"), class.output=c("test2"))
+options(width = 100)
+rgl::setupKnitr()
+options(knitr.kable.NA = '')
+
+
+colorize <- function(x, color) {sprintf("<span style='color: %s;'>%s</span>", color, x) }
+```
+
+
+```{r klippy, echo=FALSE, include=TRUE}
+klippy::klippy(position = c('top', 'right'))
+#klippy::klippy(color = 'darkred')
+#klippy::klippy(tooltip_message = 'Click to copy', tooltip_success = 'Done')
+```
+
+
+
+---  
+  
+  
+  
+## Tie maintenance
+```{r, echo=FALSE}
+rm(list=ls())
+load("tie_maintenance.RData")
+
+tab <- psych::describe(df$survive)
+tab<-tab[,c(8,9,3)]
+rownames(tab) <- "tie survived? (1=yes, 0=no)"
+
+
+knitr::kable(tab, digits=3, "html", caption="Tie maintenance among first-year students over approximately one year$^a$") %>%
+  kableExtra::kable_styling(bootstrap_options = c("striped", "hover")) %>%
+  kableExtra::add_footnote("706 alters, nested in 92 students.", notation="alphabet")
+
+ 
+
+```
+<br>
+
+48 percent of all alters was maintained, 52 percent was dropped. This is a relatively high level of instability.
+
+For comparison:
+
+- Marin and Hamption (2019)
+- Feld (1996)
+
+
+<br>
+
