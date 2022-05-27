@@ -6,7 +6,7 @@ navbar:
       href: index.html
     - text: "Preparation"
       href: prep.html
-    - text: "Descriptives"
+    - text: "Analyses"
       href: des.html
   right:
     - icon: fab fa-github

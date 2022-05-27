@@ -1,5 +1,5 @@
 ---
-title: "Descriptives"
+title: "Analyses"
 bibliography: references.bib
 date: "Last compiled on `r format(Sys.time(), '%B, %Y')`"
 output: 
@@ -39,8 +39,8 @@ klippy::klippy(position = c('top', 'right'))
   
   
   
-# Tie maintenance
-```{r, echo=FALSE}
+# Tie maintenance?
+```{r, class.source = 'fold-hide'}
 rm(list=ls())
 
 load("tie_maintenance.RData")
@@ -67,3 +67,81 @@ For comparison:
 
 
 <br>
+
+----
+
+# Political homophily?
+
+Does similarity in political orientation predict tie maintenance?
+
+<br>
+
+- The more "extreme" egos political attitude (be it left or right), the higher the probability of maintaining ties (Model 6: $OR_{ego.pol}$=1.26, *CI*=[1.04 – 1.53]).
+
+- A positive but not significant alter-effect of political attitude (Model 6: $OR_{alter.pol}$=1.08, *CI*=[0.91 – 1.28]).
+
+- Dissimilarity in political opinion (here, the absolute difference between ego and alter), decreases the probability of tie maintenance (Model 6: $OR_{ego-alter.diff.pol}$=0.87, *CI*=[0.76 – 0.99]).
+
+- Other dyadic features: age *dis*similarity predicts tie maintenance (probably due to kin often being older). Stronger ties, here in terms of contact frequency, are more stable. 
+
+
+
+
+```{r,class.source = 'fold-hide'}
+library(lme4) # fitting random effects models
+library(sjPlot) # plot functions
+
+# let's explore the role of political orientation similarity in predicting tie maintenance.
+# make ego and alter political orientation from -5 tot +5, take absolute score
+df$alter_pol_abs <- ifelse(df$alter_pol>5, as.numeric(df$alter_pol)-5,
+                                  ifelse(df$alter_pol<5, abs(as.numeric(df$alter_pol)-5), 0))  
+df$ego_pol_abs <- ifelse(df$ego_pol>5, as.numeric(df$ego_pol)-5,
+                           ifelse(df$ego_pol<5, abs(as.numeric(df$ego_pol)-5), 0))  
+
+# dichotomize gender (ref.=male)
+df$ego_gender <- ifelse(df$ego_gender==2, 1, df$ego_gender)
+
+# empty model
+m1 <- glmer ( survive ~ 1 + (1 | ego), data=df, family = "binomial")
+
+# add ego and alter political orienation (0-10
+m2 <- glmer ( survive ~ ego_pol_abs + alter_pol_abs + (1 | ego), data=df, family = "binomial")
+# egos with more "extreme" orientation are predicted to maintain ties more often.
+
+# add ego covariates
+# leave out education; variation too low.
+m3 <- glmer ( survive ~ ego_pol_abs + ego_gender + ego_age + alter_pol_abs + (1 | ego), data=df, family = "binomial")
+
+# alter covariates: education (age and gender give convergence issues)
+m4 <- glmer ( survive ~ ego_pol_abs + ego_gender + ego_age + alter_pol_abs + alter_educ + (1 | ego), data=df, family = "binomial")
+
+# political orientation similarity / difference
+m5 <- glmer ( survive ~ ego_pol_abs + ego_gender + ego_age + alter_pol_abs + alter_educ + dif_pol +  (1 | ego), data=df, family = "binomial")
+
+# other dyadic featuers
+m6 <- glmer ( survive ~ ego_pol_abs + ego_gender + ego_age + alter_pol_abs + alter_educ + dif_pol + dif_age + sim_educ + frequency  + (1 | ego), data=df, family = "binomial")
+
+# pred labels
+pl <- c(
+  `(Intercept)` = "(Intercept)",
+  ego_pol_abs = "Ego political orientation (0-5)",
+  ego_gender = "Ego gender (ref. = male)",
+  ego_age = "Ego age (in years)",
+  alter_pol_abs = "Alter political orientation (0-5)",
+  alter_educ = "Alter education",
+  dif_pol = "Ego-alter diff. pol. orientation",
+  dif_age = "Ego-alter diff. age",
+  sim_educ = "Same education",
+  frequency = "Contact frequency"
+)
+
+# table
+tab_model(m1,m2,m3,m4,m5,m6,
+          dv.labels = c("Model 1 (empty)", "Model 2 (ego + alter)", "Model 3 (ego covars)", "Model 4 (alter covars)", "Model 5 (similarity)", "Model 6 (dyad covars)"),
+          p.style="stars",
+          title="Table 1. Ego, alter and dyad effects of political orientation on tie maintenance",
+          string.est="OR",
+          order.terms = c(1,2,4,5,3,6,7,8,9,10),
+          pred.labels = pl)
+
+```

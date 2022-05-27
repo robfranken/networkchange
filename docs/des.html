@@ -11,7 +11,7 @@
 
 
 
-<title>Descriptives</title>
+<title>Analyses</title>
 
 <script src="site_libs/header-attrs-2.11/header-attrs.js"></script>
 <script src="site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
@@ -346,7 +346,7 @@ div.tocify {
   <a href="prep.html">Preparation</a>
 </li>
 <li>
-  <a href="des.html">Descriptives</a>
+  <a href="des.html">Analyses</a>
 </li>
       </ul>
       <ul class="nav navbar-nav navbar-right">
@@ -375,7 +375,7 @@ div.tocify {
 
 
 
-<h1 class="title toc-ignore">Descriptives</h1>
+<h1 class="title toc-ignore">Analyses</h1>
 <h4 class="date">Last compiled on mei, 2022</h4>
 
 </div>
@@ -387,7 +387,18 @@ div.tocify {
 </script>
 <hr />
 <div id="tie-maintenance" class="section level1">
-<h1>Tie maintenance</h1>
+<h1>Tie maintenance?</h1>
+<pre class="r fold-hide"><code>rm(list = ls())
+
+load(&quot;tie_maintenance.RData&quot;)
+
+tab &lt;- psych::describe(df$survive)
+tab &lt;- tab[, c(8, 9, 3)]
+rownames(tab) &lt;- &quot;tie survived? (1=yes, 0=no)&quot;
+
+knitr::kable(tab, digits = 3, &quot;html&quot;, caption = &quot;Tie maintenance among first-year students over approximately one year$^a$&quot;) %&gt;%
+    kableExtra::kable_styling(bootstrap_options = c(&quot;striped&quot;, &quot;hover&quot;)) %&gt;%
+    kableExtra::add_footnote(&quot;690 alters, nested in 90 students.&quot;, notation = &quot;alphabet&quot;)</code></pre>
 <table class="table table-striped table-hover" style="margin-left: auto; margin-right: auto;">
 <caption>
 Tie maintenance among first-year students over approximately one
@@ -440,9 +451,648 @@ tie survived? (1=yes, 0=no)
 <li>Feld (1996)</li>
 </ul>
 <p><br></p>
+<hr />
+</div>
+<div id="political-homophily" class="section level1">
+<h1>Political homophily?</h1>
+<p>Does similarity in political orientation predict tie maintenance?</p>
+<p><br></p>
+<ul>
+<li><p>The more “extreme” egos political attitude (be it left or right),
+the higher the probability of maintaining ties (Model 6: <span
+class="math inline">\(OR_{ego.pol}\)</span>=1.26, <em>CI</em>=[1.04 –
+1.53]).</p></li>
+<li><p>A positive but not significant alter-effect of political attitude
+(Model 6: <span class="math inline">\(OR_{alter.pol}\)</span>=1.08,
+<em>CI</em>=[0.91 – 1.28]).</p></li>
+<li><p>Dissimilarity in political opinion (here, the absolute difference
+between ego and alter), decreases the probability of tie maintenance
+(Model 6: <span
+class="math inline">\(OR_{ego-alter.diff.pol}\)</span>=0.87,
+<em>CI</em>=[0.76 – 0.99]).</p></li>
+<li><p>Other dyadic features: age <em>dis</em>similarity predicts tie
+maintenance (probably due to kin often being older). Stronger ties, here
+in terms of contact frequency, are more stable.</p></li>
+</ul>
+<pre class="r fold-hide"><code>library(lme4)  # fitting random effects models
+library(sjPlot)  # plot functions
+
+# let&#39;s explore the role of political orientation similarity in predicting tie maintenance.  make
+# ego and alter political orientation from -5 tot +5, take absolute score
+df$alter_pol_abs &lt;- ifelse(df$alter_pol &gt; 5, as.numeric(df$alter_pol) - 5, ifelse(df$alter_pol &lt; 5, abs(as.numeric(df$alter_pol) -
+    5), 0))
+df$ego_pol_abs &lt;- ifelse(df$ego_pol &gt; 5, as.numeric(df$ego_pol) - 5, ifelse(df$ego_pol &lt; 5, abs(as.numeric(df$ego_pol) -
+    5), 0))
+
+# dichotomize gender (ref.=male)
+df$ego_gender &lt;- ifelse(df$ego_gender == 2, 1, df$ego_gender)
+
+# empty model
+m1 &lt;- glmer(survive ~ 1 + (1 | ego), data = df, family = &quot;binomial&quot;)
+
+# add ego and alter political orienation (0-10
+m2 &lt;- glmer(survive ~ ego_pol_abs + alter_pol_abs + (1 | ego), data = df, family = &quot;binomial&quot;)
+# egos with more &#39;extreme&#39; orientation are predicted to maintain ties more often.
+
+# add ego covariates leave out education; variation too low.
+m3 &lt;- glmer(survive ~ ego_pol_abs + ego_gender + ego_age + alter_pol_abs + (1 | ego), data = df, family = &quot;binomial&quot;)
+
+# alter covariates: education (age and gender give convergence issues)
+m4 &lt;- glmer(survive ~ ego_pol_abs + ego_gender + ego_age + alter_pol_abs + alter_educ + (1 | ego), data = df,
+    family = &quot;binomial&quot;)
+
+# political orientation similarity / difference
+m5 &lt;- glmer(survive ~ ego_pol_abs + ego_gender + ego_age + alter_pol_abs + alter_educ + dif_pol + (1 |
+    ego), data = df, family = &quot;binomial&quot;)
+
+# other dyadic featuers
+m6 &lt;- glmer(survive ~ ego_pol_abs + ego_gender + ego_age + alter_pol_abs + alter_educ + dif_pol + dif_age +
+    sim_educ + frequency + (1 | ego), data = df, family = &quot;binomial&quot;)
+
+# pred labels
+pl &lt;- c(`(Intercept)` = &quot;(Intercept)&quot;, ego_pol_abs = &quot;Ego political orientation (0-5)&quot;, ego_gender = &quot;Ego gender (ref. = male)&quot;,
+    ego_age = &quot;Ego age (in years)&quot;, alter_pol_abs = &quot;Alter political orientation (0-5)&quot;, alter_educ = &quot;Alter education&quot;,
+    dif_pol = &quot;Ego-alter diff. pol. orientation&quot;, dif_age = &quot;Ego-alter diff. age&quot;, sim_educ = &quot;Same education&quot;,
+    frequency = &quot;Contact frequency&quot;)
+
+# table
+tab_model(m1, m2, m3, m4, m5, m6, dv.labels = c(&quot;Model 1 (empty)&quot;, &quot;Model 2 (ego + alter)&quot;, &quot;Model 3 (ego covars)&quot;,
+    &quot;Model 4 (alter covars)&quot;, &quot;Model 5 (similarity)&quot;, &quot;Model 6 (dyad covars)&quot;), p.style = &quot;stars&quot;, title = &quot;Table 1. Ego, alter and dyad effects of political orientation on tie maintenance&quot;,
+    string.est = &quot;OR&quot;, order.terms = c(1, 2, 4, 5, 3, 6, 7, 8, 9, 10), pred.labels = pl)</code></pre>
+<table style="border-collapse:collapse; border:none;">
+<caption style="font-weight: bold; text-align:left;">
+Table 1. Ego, alter and dyad effects of political orientation on tie
+maintenance
+</caption>
+<tr>
+<th style="border-top: double; text-align:center; font-style:normal; font-weight:bold; padding:0.2cm;  text-align:left; ">
+ 
+</th>
+<th colspan="2" style="border-top: double; text-align:center; font-style:normal; font-weight:bold; padding:0.2cm; ">
+Model 1 (empty)
+</th>
+<th colspan="2" style="border-top: double; text-align:center; font-style:normal; font-weight:bold; padding:0.2cm; ">
+Model 2 (ego + alter)
+</th>
+<th colspan="2" style="border-top: double; text-align:center; font-style:normal; font-weight:bold; padding:0.2cm; ">
+Model 3 (ego covars)
+</th>
+<th colspan="2" style="border-top: double; text-align:center; font-style:normal; font-weight:bold; padding:0.2cm; ">
+Model 4 (alter covars)
+</th>
+<th colspan="2" style="border-top: double; text-align:center; font-style:normal; font-weight:bold; padding:0.2cm; ">
+Model 5 (similarity)
+</th>
+<th colspan="2" style="border-top: double; text-align:center; font-style:normal; font-weight:bold; padding:0.2cm; ">
+Model 6 (dyad covars)
+</th>
+</tr>
+<tr>
+<td style=" text-align:center; border-bottom:1px solid; font-style:italic; font-weight:normal;  text-align:left; ">
+Predictors
+</td>
+<td style=" text-align:center; border-bottom:1px solid; font-style:italic; font-weight:normal;  ">
+OR
+</td>
+<td style=" text-align:center; border-bottom:1px solid; font-style:italic; font-weight:normal;  ">
+CI
+</td>
+<td style=" text-align:center; border-bottom:1px solid; font-style:italic; font-weight:normal;  ">
+OR
+</td>
+<td style=" text-align:center; border-bottom:1px solid; font-style:italic; font-weight:normal;  ">
+CI
+</td>
+<td style=" text-align:center; border-bottom:1px solid; font-style:italic; font-weight:normal;  ">
+OR
+</td>
+<td style=" text-align:center; border-bottom:1px solid; font-style:italic; font-weight:normal;  col7">
+CI
+</td>
+<td style=" text-align:center; border-bottom:1px solid; font-style:italic; font-weight:normal;  col8">
+OR
+</td>
+<td style=" text-align:center; border-bottom:1px solid; font-style:italic; font-weight:normal;  col9">
+CI
+</td>
+<td style=" text-align:center; border-bottom:1px solid; font-style:italic; font-weight:normal;  0">
+OR
+</td>
+<td style=" text-align:center; border-bottom:1px solid; font-style:italic; font-weight:normal;  1">
+CI
+</td>
+<td style=" text-align:center; border-bottom:1px solid; font-style:italic; font-weight:normal;  2">
+OR
+</td>
+<td style=" text-align:center; border-bottom:1px solid; font-style:italic; font-weight:normal;  3">
+CI
+</td>
+</tr>
+<tr>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:left; ">
+(Intercept)
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+1.01 <sup></sup>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+0.84 – 1.22
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+0.70 <sup></sup>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+0.43 – 1.13
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+0.06 <sup>*</sup>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  col7">
+0.01 – 0.69
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  col8">
+0.05 <sup>*</sup>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  col9">
+0.00 – 0.58
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  0">
+0.06 <sup>*</sup>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  1">
+0.01 – 0.65
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  2">
+0.01 <sup>**</sup>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  3">
+0.00 – 0.21
+</td>
+</tr>
+<tr>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:left; ">
+Ego political orientation<br>(0-5)
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+1.20 <sup>*</sup>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+1.01 – 1.44
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+1.18 <sup></sup>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  col7">
+1.00 – 1.41
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  col8">
+1.16 <sup></sup>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  col9">
+0.98 – 1.38
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  0">
+1.21 <sup>*</sup>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  1">
+1.02 – 1.43
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  2">
+1.27 <sup>*</sup>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  3">
+1.04 – 1.53
+</td>
+</tr>
+<tr>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:left; ">
+Ego gender (ref. = male)
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+1.69 <sup>*</sup>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  col7">
+1.06 – 2.71
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  col8">
+1.82 <sup>*</sup>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  col9">
+1.14 – 2.89
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  0">
+1.80 <sup>**</sup>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  1">
+1.15 – 2.80
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  2">
+1.99 <sup>**</sup>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  3">
+1.18 – 3.34
+</td>
+</tr>
+<tr>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:left; ">
+Ego age (in years)
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+1.11 <sup></sup>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  col7">
+0.99 – 1.25
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  col8">
+1.12 <sup>*</sup>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  col9">
+1.00 – 1.26
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  0">
+1.13 <sup>*</sup>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  1">
+1.01 – 1.26
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  2">
+1.14 <sup>*</sup>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  3">
+1.00 – 1.29
+</td>
+</tr>
+<tr>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:left; ">
+Alter political<br>orientation (0-5)
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+1.10 <sup></sup>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+0.94 – 1.29
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+1.09 <sup></sup>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  col7">
+0.93 – 1.28
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  col8">
+1.09 <sup></sup>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  col9">
+0.93 – 1.27
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  0">
+1.08 <sup></sup>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  1">
+0.93 – 1.27
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  2">
+1.07 <sup></sup>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  3">
+0.91 – 1.27
+</td>
+</tr>
+<tr>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:left; ">
+Alter education
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  col7">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  col8">
+1.02 <sup></sup>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  col9">
+0.86 – 1.20
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  0">
+1.00 <sup></sup>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  1">
+0.85 – 1.19
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  2">
+1.04 <sup></sup>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  3">
+0.80 – 1.35
+</td>
+</tr>
+<tr>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:left; ">
+Ego-alter diff. pol.<br>orientation
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  col7">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  col8">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  col9">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  0">
+0.86 <sup>*</sup>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  1">
+0.76 – 0.98
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  2">
+0.87 <sup>*</sup>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  3">
+0.76 – 0.99
+</td>
+</tr>
+<tr>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:left; ">
+Ego-alter diff. age
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  col7">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  col8">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  col9">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  0">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  1">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  2">
+1.03 <sup>**</sup>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  3">
+1.01 – 1.06
+</td>
+</tr>
+<tr>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:left; ">
+Same education
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  col7">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  col8">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  col9">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  0">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  1">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  2">
+1.06 <sup></sup>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  3">
+0.59 – 1.91
+</td>
+</tr>
+<tr>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:left; ">
+Contact frequency
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  ">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  col7">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  col8">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  col9">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  0">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  1">
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  2">
+3.12 <sup>***</sup>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:center;  3">
+1.91 – 5.09
+</td>
+</tr>
+<tr>
+<td colspan="13" style="font-weight:bold; text-align:left; padding-top:.8em;">
+Random Effects
+</td>
+</tr>
+<tr>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:left; padding-top:0.1cm; padding-bottom:0.1cm;">
+σ<sup>2</sup>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; padding-top:0.1cm; padding-bottom:0.1cm; text-align:left;" colspan="2">
+3.29
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; padding-top:0.1cm; padding-bottom:0.1cm; text-align:left;" colspan="2">
+3.29
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; padding-top:0.1cm; padding-bottom:0.1cm; text-align:left;" colspan="2">
+3.29
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; padding-top:0.1cm; padding-bottom:0.1cm; text-align:left;" colspan="2">
+3.29
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; padding-top:0.1cm; padding-bottom:0.1cm; text-align:left;" colspan="2">
+3.29
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; padding-top:0.1cm; padding-bottom:0.1cm; text-align:left;" colspan="2">
+3.29
+</td>
+</tr>
+<tr>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:left; padding-top:0.1cm; padding-bottom:0.1cm;">
+τ<sub>00</sub>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; padding-top:0.1cm; padding-bottom:0.1cm; text-align:left;" colspan="2">
+0.22 <sub>ego</sub>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; padding-top:0.1cm; padding-bottom:0.1cm; text-align:left;" colspan="2">
+0.18 <sub>ego</sub>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; padding-top:0.1cm; padding-bottom:0.1cm; text-align:left;" colspan="2">
+0.10 <sub>ego</sub>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; padding-top:0.1cm; padding-bottom:0.1cm; text-align:left;" colspan="2">
+0.07 <sub>ego</sub>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; padding-top:0.1cm; padding-bottom:0.1cm; text-align:left;" colspan="2">
+0.03 <sub>ego</sub>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; padding-top:0.1cm; padding-bottom:0.1cm; text-align:left;" colspan="2">
+0.14 <sub>ego</sub>
+</td>
+<tr>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:left; padding-top:0.1cm; padding-bottom:0.1cm;">
+ICC
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; padding-top:0.1cm; padding-bottom:0.1cm; text-align:left;" colspan="2">
+0.06
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; padding-top:0.1cm; padding-bottom:0.1cm; text-align:left;" colspan="2">
+0.05
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; padding-top:0.1cm; padding-bottom:0.1cm; text-align:left;" colspan="2">
+0.03
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; padding-top:0.1cm; padding-bottom:0.1cm; text-align:left;" colspan="2">
+0.02
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; padding-top:0.1cm; padding-bottom:0.1cm; text-align:left;" colspan="2">
+0.01
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; padding-top:0.1cm; padding-bottom:0.1cm; text-align:left;" colspan="2">
+0.04
+</td>
+<tr>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:left; padding-top:0.1cm; padding-bottom:0.1cm;">
+N
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; padding-top:0.1cm; padding-bottom:0.1cm; text-align:left;" colspan="2">
+90 <sub>ego</sub>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; padding-top:0.1cm; padding-bottom:0.1cm; text-align:left;" colspan="2">
+73 <sub>ego</sub>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; padding-top:0.1cm; padding-bottom:0.1cm; text-align:left;" colspan="2">
+73 <sub>ego</sub>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; padding-top:0.1cm; padding-bottom:0.1cm; text-align:left;" colspan="2">
+72 <sub>ego</sub>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; padding-top:0.1cm; padding-bottom:0.1cm; text-align:left;" colspan="2">
+72 <sub>ego</sub>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; padding-top:0.1cm; padding-bottom:0.1cm; text-align:left;" colspan="2">
+72 <sub>ego</sub>
+</td>
+<tr>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:left; padding-top:0.1cm; padding-bottom:0.1cm; border-top:1px solid;">
+Observations
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; padding-top:0.1cm; padding-bottom:0.1cm; text-align:left; border-top:1px solid;" colspan="2">
+690
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; padding-top:0.1cm; padding-bottom:0.1cm; text-align:left; border-top:1px solid;" colspan="2">
+482
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; padding-top:0.1cm; padding-bottom:0.1cm; text-align:left; border-top:1px solid;" colspan="2">
+482
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; padding-top:0.1cm; padding-bottom:0.1cm; text-align:left; border-top:1px solid;" colspan="2">
+473
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; padding-top:0.1cm; padding-bottom:0.1cm; text-align:left; border-top:1px solid;" colspan="2">
+473
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; padding-top:0.1cm; padding-bottom:0.1cm; text-align:left; border-top:1px solid;" colspan="2">
+473
+</td>
+</tr>
+<tr>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; text-align:left; padding-top:0.1cm; padding-bottom:0.1cm;">
+Marginal R<sup>2</sup> / Conditional R<sup>2</sup>
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; padding-top:0.1cm; padding-bottom:0.1cm; text-align:left;" colspan="2">
+0.000 / 0.063
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; padding-top:0.1cm; padding-bottom:0.1cm; text-align:left;" colspan="2">
+0.024 / 0.076
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; padding-top:0.1cm; padding-bottom:0.1cm; text-align:left;" colspan="2">
+0.043 / 0.072
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; padding-top:0.1cm; padding-bottom:0.1cm; text-align:left;" colspan="2">
+0.046 / 0.067
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; padding-top:0.1cm; padding-bottom:0.1cm; text-align:left;" colspan="2">
+0.061 / 0.069
+</td>
+<td style=" padding:0.2cm; text-align:left; vertical-align:top; padding-top:0.1cm; padding-bottom:0.1cm; text-align:left;" colspan="2">
+0.182 / 0.216
+</td>
+</tr>
+<tr>
+<td colspan="13" style="font-style:italic; border-top:double black; text-align:right;">
+<ul>
+<li>p&lt;0.05   ** p&lt;0.01   *** p&lt;0.001
+</td>
+</tr></li>
+</ul>
+</table>
 </div>
 
-<div id="rmd-source-code">LS0tDQp0aXRsZTogIkRlc2NyaXB0aXZlcyINCmJpYmxpb2dyYXBoeTogcmVmZXJlbmNlcy5iaWINCmRhdGU6ICJMYXN0IGNvbXBpbGVkIG9uIGByIGZvcm1hdChTeXMudGltZSgpLCAnJUIsICVZJylgIg0Kb3V0cHV0OiANCiAgaHRtbF9kb2N1bWVudDoNCiAgICBjc3M6IHR3ZWFrcy5jc3MNCiAgICB0b2M6ICB0cnVlDQogICAgdG9jX2Zsb2F0OiB0cnVlDQogICAgbnVtYmVyX3NlY3Rpb25zOiBmYWxzZQ0KICAgIHRvY19kZXB0aDogMQ0KICAgIGNvZGVfZm9sZGluZzogc2hvdw0KICAgIGNvZGVfZG93bmxvYWQ6IHllcw0KLS0tDQogIA0KYGBge3IgZWNobz1GQUxTRSwgd2FybmluZz1GQUxTRSwgcmVzdWx0cz0naGlkZScsIG1lc3NhZ2U9RkFMU0V9DQpsaWJyYXJ5KGtuaXRyKQ0KbGlicmFyeShkcGx5cikNCmtuaXRyOjpvcHRzX2NodW5rJHNldChlY2hvID0gVFJVRSkNCm9wdHNfY2h1bmskc2V0KHRpZHkub3B0cz1saXN0KHdpZHRoLmN1dG9mZj0xMDApLHRpZHk9VFJVRSwgd2FybmluZyA9IEZBTFNFLCBtZXNzYWdlID0gRkFMU0UsY29tbWVudCA9IEZBTFNFLCBjYWNoZT1UUlVFLCBjbGFzcy5zb3VyY2U9YygidGVzdDIiKSwgY2xhc3Mub3V0cHV0PWMoInRlc3QyIikpDQpvcHRpb25zKHdpZHRoID0gMTAwKQ0KcmdsOjpzZXR1cEtuaXRyKCkNCm9wdGlvbnMoa25pdHIua2FibGUuTkEgPSAnJykNCg0KDQpjb2xvcml6ZSA8LSBmdW5jdGlvbih4LCBjb2xvcikge3NwcmludGYoIjxzcGFuIHN0eWxlPSdjb2xvcjogJXM7Jz4lczwvc3Bhbj4iLCBjb2xvciwgeCkgfQ0KYGBgDQoNCg0KYGBge3Iga2xpcHB5LCBlY2hvPUZBTFNFLCBpbmNsdWRlPVRSVUV9DQprbGlwcHk6OmtsaXBweShwb3NpdGlvbiA9IGMoJ3RvcCcsICdyaWdodCcpKQ0KI2tsaXBweTo6a2xpcHB5KGNvbG9yID0gJ2RhcmtyZWQnKQ0KI2tsaXBweTo6a2xpcHB5KHRvb2x0aXBfbWVzc2FnZSA9ICdDbGljayB0byBjb3B5JywgdG9vbHRpcF9zdWNjZXNzID0gJ0RvbmUnKQ0KYGBgDQoNCg0KDQotLS0gIA0KICANCiAgDQogIA0KIyBUaWUgbWFpbnRlbmFuY2UNCmBgYHtyLCBlY2hvPUZBTFNFfQ0Kcm0obGlzdD1scygpKQ0KDQpsb2FkKCJ0aWVfbWFpbnRlbmFuY2UuUkRhdGEiKQ0KDQp0YWIgPC0gcHN5Y2g6OmRlc2NyaWJlKGRmJHN1cnZpdmUpDQp0YWI8LXRhYlssYyg4LDksMyldDQpyb3duYW1lcyh0YWIpIDwtICJ0aWUgc3Vydml2ZWQ/ICgxPXllcywgMD1ubykiDQoNCmtuaXRyOjprYWJsZSh0YWIsIGRpZ2l0cz0zLCAiaHRtbCIsIGNhcHRpb249IlRpZSBtYWludGVuYW5jZSBhbW9uZyBmaXJzdC15ZWFyIHN0dWRlbnRzIG92ZXIgYXBwcm94aW1hdGVseSBvbmUgeWVhciReYSQiKSAlPiUNCiAga2FibGVFeHRyYTo6a2FibGVfc3R5bGluZyhib290c3RyYXBfb3B0aW9ucyA9IGMoInN0cmlwZWQiLCAiaG92ZXIiKSkgJT4lDQogIGthYmxlRXh0cmE6OmFkZF9mb290bm90ZSgiNjkwIGFsdGVycywgbmVzdGVkIGluIDkwIHN0dWRlbnRzLiIsIG5vdGF0aW9uPSJhbHBoYWJldCIpDQoNCiANCg0KYGBgDQo8YnI+DQoNCjUwIHBlcmNlbnQgb2YgYWxsIGFsdGVycyB3YXMgbWFpbnRhaW5lZC4NCg0KRm9yIGNvbXBhcmlzb246DQoNCi0gTWFyaW4gYW5kIEhhbXB0aW9uICgyMDE5KQ0KLSBGZWxkICgxOTk2KQ0KDQoNCjxicj4NCg==</div>
+<div id="rmd-source-code">LS0tDQp0aXRsZTogIkFuYWx5c2VzIg0KYmlibGlvZ3JhcGh5OiByZWZlcmVuY2VzLmJpYg0KZGF0ZTogIkxhc3QgY29tcGlsZWQgb24gYHIgZm9ybWF0KFN5cy50aW1lKCksICclQiwgJVknKWAiDQpvdXRwdXQ6IA0KICBodG1sX2RvY3VtZW50Og0KICAgIGNzczogdHdlYWtzLmNzcw0KICAgIHRvYzogIHRydWUNCiAgICB0b2NfZmxvYXQ6IHRydWUNCiAgICBudW1iZXJfc2VjdGlvbnM6IGZhbHNlDQogICAgdG9jX2RlcHRoOiAxDQogICAgY29kZV9mb2xkaW5nOiBzaG93DQogICAgY29kZV9kb3dubG9hZDogeWVzDQotLS0NCiAgDQpgYGB7ciBlY2hvPUZBTFNFLCB3YXJuaW5nPUZBTFNFLCByZXN1bHRzPSdoaWRlJywgbWVzc2FnZT1GQUxTRX0NCmxpYnJhcnkoa25pdHIpDQpsaWJyYXJ5KGRwbHlyKQ0Ka25pdHI6Om9wdHNfY2h1bmskc2V0KGVjaG8gPSBUUlVFKQ0Kb3B0c19jaHVuayRzZXQodGlkeS5vcHRzPWxpc3Qod2lkdGguY3V0b2ZmPTEwMCksdGlkeT1UUlVFLCB3YXJuaW5nID0gRkFMU0UsIG1lc3NhZ2UgPSBGQUxTRSxjb21tZW50ID0gRkFMU0UsIGNhY2hlPVRSVUUsIGNsYXNzLnNvdXJjZT1jKCJ0ZXN0MiIpLCBjbGFzcy5vdXRwdXQ9YygidGVzdDIiKSkNCm9wdGlvbnMod2lkdGggPSAxMDApDQpyZ2w6OnNldHVwS25pdHIoKQ0Kb3B0aW9ucyhrbml0ci5rYWJsZS5OQSA9ICcnKQ0KDQoNCmNvbG9yaXplIDwtIGZ1bmN0aW9uKHgsIGNvbG9yKSB7c3ByaW50ZigiPHNwYW4gc3R5bGU9J2NvbG9yOiAlczsnPiVzPC9zcGFuPiIsIGNvbG9yLCB4KSB9DQpgYGANCg0KDQpgYGB7ciBrbGlwcHksIGVjaG89RkFMU0UsIGluY2x1ZGU9VFJVRX0NCmtsaXBweTo6a2xpcHB5KHBvc2l0aW9uID0gYygndG9wJywgJ3JpZ2h0JykpDQoja2xpcHB5OjprbGlwcHkoY29sb3IgPSAnZGFya3JlZCcpDQoja2xpcHB5OjprbGlwcHkodG9vbHRpcF9tZXNzYWdlID0gJ0NsaWNrIHRvIGNvcHknLCB0b29sdGlwX3N1Y2Nlc3MgPSAnRG9uZScpDQpgYGANCg0KDQoNCi0tLSAgDQogIA0KICANCiAgDQojIFRpZSBtYWludGVuYW5jZT8NCmBgYHtyLCBjbGFzcy5zb3VyY2UgPSAnZm9sZC1oaWRlJ30NCnJtKGxpc3Q9bHMoKSkNCg0KbG9hZCgidGllX21haW50ZW5hbmNlLlJEYXRhIikNCg0KdGFiIDwtIHBzeWNoOjpkZXNjcmliZShkZiRzdXJ2aXZlKQ0KdGFiPC10YWJbLGMoOCw5LDMpXQ0Kcm93bmFtZXModGFiKSA8LSAidGllIHN1cnZpdmVkPyAoMT15ZXMsIDA9bm8pIg0KDQprbml0cjo6a2FibGUodGFiLCBkaWdpdHM9MywgImh0bWwiLCBjYXB0aW9uPSJUaWUgbWFpbnRlbmFuY2UgYW1vbmcgZmlyc3QteWVhciBzdHVkZW50cyBvdmVyIGFwcHJveGltYXRlbHkgb25lIHllYXIkXmEkIikgJT4lDQogIGthYmxlRXh0cmE6OmthYmxlX3N0eWxpbmcoYm9vdHN0cmFwX29wdGlvbnMgPSBjKCJzdHJpcGVkIiwgImhvdmVyIikpICU+JQ0KICBrYWJsZUV4dHJhOjphZGRfZm9vdG5vdGUoIjY5MCBhbHRlcnMsIG5lc3RlZCBpbiA5MCBzdHVkZW50cy4iLCBub3RhdGlvbj0iYWxwaGFiZXQiKQ0KDQogDQoNCmBgYA0KPGJyPg0KDQo1MCBwZXJjZW50IG9mIGFsbCBhbHRlcnMgd2FzIG1haW50YWluZWQuDQoNCkZvciBjb21wYXJpc29uOg0KDQotIE1hcmluIGFuZCBIYW1wdGlvbiAoMjAxOSkNCi0gRmVsZCAoMTk5NikNCg0KDQo8YnI+DQoNCi0tLS0NCg0KIyBQb2xpdGljYWwgaG9tb3BoaWx5Pw0KDQpEb2VzIHNpbWlsYXJpdHkgaW4gcG9saXRpY2FsIG9yaWVudGF0aW9uIHByZWRpY3QgdGllIG1haW50ZW5hbmNlPw0KDQo8YnI+DQoNCi0gVGhlIG1vcmUgImV4dHJlbWUiIGVnb3MgcG9saXRpY2FsIGF0dGl0dWRlIChiZSBpdCBsZWZ0IG9yIHJpZ2h0KSwgdGhlIGhpZ2hlciB0aGUgcHJvYmFiaWxpdHkgb2YgbWFpbnRhaW5pbmcgdGllcyAoTW9kZWwgNjogJE9SX3tlZ28ucG9sfSQ9MS4yNiwgKkNJKj1bMS4wNCDigJMgMS41M10pLg0KDQotIEEgcG9zaXRpdmUgYnV0IG5vdCBzaWduaWZpY2FudCBhbHRlci1lZmZlY3Qgb2YgcG9saXRpY2FsIGF0dGl0dWRlIChNb2RlbCA2OiAkT1Jfe2FsdGVyLnBvbH0kPTEuMDgsICpDSSo9WzAuOTEg4oCTIDEuMjhdKS4NCg0KLSBEaXNzaW1pbGFyaXR5IGluIHBvbGl0aWNhbCBvcGluaW9uIChoZXJlLCB0aGUgYWJzb2x1dGUgZGlmZmVyZW5jZSBiZXR3ZWVuIGVnbyBhbmQgYWx0ZXIpLCBkZWNyZWFzZXMgdGhlIHByb2JhYmlsaXR5IG9mIHRpZSBtYWludGVuYW5jZSAoTW9kZWwgNjogJE9SX3tlZ28tYWx0ZXIuZGlmZi5wb2x9JD0wLjg3LCAqQ0kqPVswLjc2IOKAkyAwLjk5XSkuDQoNCi0gT3RoZXIgZHlhZGljIGZlYXR1cmVzOiBhZ2UgKmRpcypzaW1pbGFyaXR5IHByZWRpY3RzIHRpZSBtYWludGVuYW5jZSAocHJvYmFibHkgZHVlIHRvIGtpbiBvZnRlbiBiZWluZyBvbGRlcikuIFN0cm9uZ2VyIHRpZXMsIGhlcmUgaW4gdGVybXMgb2YgY29udGFjdCBmcmVxdWVuY3ksIGFyZSBtb3JlIHN0YWJsZS4gDQoNCg0KDQoNCmBgYHtyLGNsYXNzLnNvdXJjZSA9ICdmb2xkLWhpZGUnfQ0KbGlicmFyeShsbWU0KSAjIGZpdHRpbmcgcmFuZG9tIGVmZmVjdHMgbW9kZWxzDQpsaWJyYXJ5KHNqUGxvdCkgIyBwbG90IGZ1bmN0aW9ucw0KDQojIGxldCdzIGV4cGxvcmUgdGhlIHJvbGUgb2YgcG9saXRpY2FsIG9yaWVudGF0aW9uIHNpbWlsYXJpdHkgaW4gcHJlZGljdGluZyB0aWUgbWFpbnRlbmFuY2UuDQojIG1ha2UgZWdvIGFuZCBhbHRlciBwb2xpdGljYWwgb3JpZW50YXRpb24gZnJvbSAtNSB0b3QgKzUsIHRha2UgYWJzb2x1dGUgc2NvcmUNCmRmJGFsdGVyX3BvbF9hYnMgPC0gaWZlbHNlKGRmJGFsdGVyX3BvbD41LCBhcy5udW1lcmljKGRmJGFsdGVyX3BvbCktNSwNCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBpZmVsc2UoZGYkYWx0ZXJfcG9sPDUsIGFicyhhcy5udW1lcmljKGRmJGFsdGVyX3BvbCktNSksIDApKSAgDQpkZiRlZ29fcG9sX2FicyA8LSBpZmVsc2UoZGYkZWdvX3BvbD41LCBhcy5udW1lcmljKGRmJGVnb19wb2wpLTUsDQogICAgICAgICAgICAgICAgICAgICAgICAgICBpZmVsc2UoZGYkZWdvX3BvbDw1LCBhYnMoYXMubnVtZXJpYyhkZiRlZ29fcG9sKS01KSwgMCkpICANCg0KIyBkaWNob3RvbWl6ZSBnZW5kZXIgKHJlZi49bWFsZSkNCmRmJGVnb19nZW5kZXIgPC0gaWZlbHNlKGRmJGVnb19nZW5kZXI9PTIsIDEsIGRmJGVnb19nZW5kZXIpDQoNCiMgZW1wdHkgbW9kZWwNCm0xIDwtIGdsbWVyICggc3Vydml2ZSB+IDEgKyAoMSB8IGVnbyksIGRhdGE9ZGYsIGZhbWlseSA9ICJiaW5vbWlhbCIpDQoNCiMgYWRkIGVnbyBhbmQgYWx0ZXIgcG9saXRpY2FsIG9yaWVuYXRpb24gKDAtMTANCm0yIDwtIGdsbWVyICggc3Vydml2ZSB+IGVnb19wb2xfYWJzICsgYWx0ZXJfcG9sX2FicyArICgxIHwgZWdvKSwgZGF0YT1kZiwgZmFtaWx5ID0gImJpbm9taWFsIikNCiMgZWdvcyB3aXRoIG1vcmUgImV4dHJlbWUiIG9yaWVudGF0aW9uIGFyZSBwcmVkaWN0ZWQgdG8gbWFpbnRhaW4gdGllcyBtb3JlIG9mdGVuLg0KDQojIGFkZCBlZ28gY292YXJpYXRlcw0KIyBsZWF2ZSBvdXQgZWR1Y2F0aW9uOyB2YXJpYXRpb24gdG9vIGxvdy4NCm0zIDwtIGdsbWVyICggc3Vydml2ZSB+IGVnb19wb2xfYWJzICsgZWdvX2dlbmRlciArIGVnb19hZ2UgKyBhbHRlcl9wb2xfYWJzICsgKDEgfCBlZ28pLCBkYXRhPWRmLCBmYW1pbHkgPSAiYmlub21pYWwiKQ0KDQojIGFsdGVyIGNvdmFyaWF0ZXM6IGVkdWNhdGlvbiAoYWdlIGFuZCBnZW5kZXIgZ2l2ZSBjb252ZXJnZW5jZSBpc3N1ZXMpDQptNCA8LSBnbG1lciAoIHN1cnZpdmUgfiBlZ29fcG9sX2FicyArIGVnb19nZW5kZXIgKyBlZ29fYWdlICsgYWx0ZXJfcG9sX2FicyArIGFsdGVyX2VkdWMgKyAoMSB8IGVnbyksIGRhdGE9ZGYsIGZhbWlseSA9ICJiaW5vbWlhbCIpDQoNCiMgcG9saXRpY2FsIG9yaWVudGF0aW9uIHNpbWlsYXJpdHkgLyBkaWZmZXJlbmNlDQptNSA8LSBnbG1lciAoIHN1cnZpdmUgfiBlZ29fcG9sX2FicyArIGVnb19nZW5kZXIgKyBlZ29fYWdlICsgYWx0ZXJfcG9sX2FicyArIGFsdGVyX2VkdWMgKyBkaWZfcG9sICsgICgxIHwgZWdvKSwgZGF0YT1kZiwgZmFtaWx5ID0gImJpbm9taWFsIikNCg0KIyBvdGhlciBkeWFkaWMgZmVhdHVlcnMNCm02IDwtIGdsbWVyICggc3Vydml2ZSB+IGVnb19wb2xfYWJzICsgZWdvX2dlbmRlciArIGVnb19hZ2UgKyBhbHRlcl9wb2xfYWJzICsgYWx0ZXJfZWR1YyArIGRpZl9wb2wgKyBkaWZfYWdlICsgc2ltX2VkdWMgKyBmcmVxdWVuY3kgICsgKDEgfCBlZ28pLCBkYXRhPWRmLCBmYW1pbHkgPSAiYmlub21pYWwiKQ0KDQojIHByZWQgbGFiZWxzDQpwbCA8LSBjKA0KICBgKEludGVyY2VwdClgID0gIihJbnRlcmNlcHQpIiwNCiAgZWdvX3BvbF9hYnMgPSAiRWdvIHBvbGl0aWNhbCBvcmllbnRhdGlvbiAoMC01KSIsDQogIGVnb19nZW5kZXIgPSAiRWdvIGdlbmRlciAocmVmLiA9IG1hbGUpIiwNCiAgZWdvX2FnZSA9ICJFZ28gYWdlIChpbiB5ZWFycykiLA0KICBhbHRlcl9wb2xfYWJzID0gIkFsdGVyIHBvbGl0aWNhbCBvcmllbnRhdGlvbiAoMC01KSIsDQogIGFsdGVyX2VkdWMgPSAiQWx0ZXIgZWR1Y2F0aW9uIiwNCiAgZGlmX3BvbCA9ICJFZ28tYWx0ZXIgZGlmZi4gcG9sLiBvcmllbnRhdGlvbiIsDQogIGRpZl9hZ2UgPSAiRWdvLWFsdGVyIGRpZmYuIGFnZSIsDQogIHNpbV9lZHVjID0gIlNhbWUgZWR1Y2F0aW9uIiwNCiAgZnJlcXVlbmN5ID0gIkNvbnRhY3QgZnJlcXVlbmN5Ig0KKQ0KDQojIHRhYmxlDQp0YWJfbW9kZWwobTEsbTIsbTMsbTQsbTUsbTYsDQogICAgICAgICAgZHYubGFiZWxzID0gYygiTW9kZWwgMSAoZW1wdHkpIiwgIk1vZGVsIDIgKGVnbyArIGFsdGVyKSIsICJNb2RlbCAzIChlZ28gY292YXJzKSIsICJNb2RlbCA0IChhbHRlciBjb3ZhcnMpIiwgIk1vZGVsIDUgKHNpbWlsYXJpdHkpIiwgIk1vZGVsIDYgKGR5YWQgY292YXJzKSIpLA0KICAgICAgICAgIHAuc3R5bGU9InN0YXJzIiwNCiAgICAgICAgICB0aXRsZT0iVGFibGUgMS4gRWdvLCBhbHRlciBhbmQgZHlhZCBlZmZlY3RzIG9mIHBvbGl0aWNhbCBvcmllbnRhdGlvbiBvbiB0aWUgbWFpbnRlbmFuY2UiLA0KICAgICAgICAgIHN0cmluZy5lc3Q9Ik9SIiwNCiAgICAgICAgICBvcmRlci50ZXJtcyA9IGMoMSwyLDQsNSwzLDYsNyw4LDksMTApLA0KICAgICAgICAgIHByZWQubGFiZWxzID0gcGwpDQoNCmBgYA==</div>
 <style>
 .center {
   text-align: center;
