@@ -1,4 +1,4 @@
-# network_stability
+# networkchange
 
 study on network stability/change among Dutch students.
 

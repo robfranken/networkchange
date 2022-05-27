@@ -130,7 +130,7 @@ for ( i in 1:nrow(df_names)) {
     # network-variables (e.g., size,density);
     # context; ideally, dynamic measures, i.e., measures of change in variables
     # pertaining to demographic features (e.g., life events: change of residency etc.)
-    )
+  )
 }
 
 # fill the names based on the names data-frame
@@ -361,7 +361,7 @@ for (i in 1:length(alterL)) {
                                 ifelse(unlist(df_age[i,], use.names=F)=="31 tot 40 jaar", 35,
                                        ifelse(unlist(df_age[i,], use.names=F)=="Ouder dan 40 jaar", 45, #???
                                               ifelse(unlist(df_age[i,], use.names=F)=="Weet ik niet", NA, # i don't know = missing
-                                              unlist(df_age[i,], use.names=F))))))))}
+                                                     unlist(df_age[i,], use.names=F))))))))}
 
 # education... was asked in w2. for all alters (thus in w2, and unique names of w1)
 # but w1 names were only listed if they did not correspond to w2 alters...
@@ -407,7 +407,7 @@ for (i in 1:length(alterL)) {
                                                  NA)))
   # education 
   # @RF: these score should correspond to scores given to alter educ...
-  alterL[[i]]$ego_educ <- ifelse(data$T1[i] == "aan de Hogeschool van Arnhem en Nijmegen (HAN)", 0, 1 )
+  alterL[[i]]$ego_educ <- ifelse(data$T1[i] == "aan de Hogeschool van Arnhem en Nijmegen (HAN)", "hbo", "universiteit" )
   
   # age
   # calculated as the difference between submission date and birthdate
@@ -580,7 +580,7 @@ for (i in unique(df$ego)) { # for ego
     df$alter_pol[which(df$ego==i & df$alter==j)] <- alterL[[i]]$alter_pol[j]
   }
 }
-  
+
 # dyadic level
 df$same_gender = NA
 df$sim_educ = NA
@@ -622,7 +622,7 @@ d <- data.frame(d[order(d$id, decreasing = F), ])
 rownames(d) <- 1:length(rownames(d))
 
 for (i in 1:nrow(d)) {  # for ego i
-
+  
   matchingL <- list()  # make a list of matching matrices
   {
     matchingL[[1]] <- d[i,2:21]
@@ -657,6 +657,121 @@ for (i in 1:nrow(d)) {  # for ego i
   
 }
 
+##################################################################################
+
+# add other variables.....
+# education
+# alter educ was asked in w2.
+# merge the data.
+d <- merge(data, data2, by="email")
+# sort
+d <- data.frame(d[order(d$id, decreasing = F), ])
+
+# i asked the education level of all alters, of w1 and w2.
+# i only named w2 alters that were unmatched and new compared to w1.
+# all (unique) w1-alters were listed.
+# d$q0r117.SQ021. - d$q0r117.SQ035. 
+
+for (i in unique(df$ego)) { # for ego i  
+  # subset alter education
+  educj <- cbind(d$q0r117.SQ021.[i],d$q0r117.SQ022.[i],d$q0r117.SQ023.[i],d$q0r117.SQ024.[i],d$q0r117.SQ025.[i],d$q0r117.SQ026.[i],d$q0r117.SQ027.[i],d$q0r117.SQ028.[i],
+                 d$q0r117.SQ029.[i],d$q0r117.SQ030.[i],d$q0r117.SQ031.[i],d$q0r117.SQ032.[i],d$q0r117.SQ033.[i],d$q0r117.SQ034.[i],d$q0r117.SQ035.[i])
+  for (j in unique(df$alter[which(df$ego==i)])) { # for alter j
+    # assign education level
+    df$alter_educ[which(df$ego==i & df$alter==j)] <- educj[j]
+  }
+}
+
+# @RF; for now use 3 CBS categories; later on, operationalize education in years;
+prim <- c("lagere school", "vmbo, mavo")
+lowsec <- c("mbo")
+highsec <- c( "havo", "vwo / gymnasium")
+lowtert <- "hbo"
+hightert <- "universiteit"
+
+for (i in unique(df$ego)) {
+  for (j in unique(df$alter[which(df$ego==i)])) {
+    
+    df$alter_educ[which(df$ego==i & df$alter==j)] <-
+      ifelse(    
+        df$alter_educ[which(df$ego==i & df$alter==j)] %in% prim, 1,
+        ifelse(df$alter_educ[which(df$ego==i & df$alter==j)] %in% lowsec, 2,
+               ifelse(df$alter_educ[which(df$ego==i & df$alter==j)] %in% highsec, 3,
+                      ifelse( df$alter_educ[which(df$ego==i & df$alter==j)] %in% lowtert, 4, 
+                              ifelse(  df$alter_educ[which(df$ego==i & df$alter==j)] %in% hightert, 5,
+                                       NA)))))
+  }
+}
+df$alter_educ <- as.numeric(df$alter_educ)
+# ego educ
+df$ego_educ <- ifelse(df$ego_educ=="hbo", 4, 5)
+
+# @RF. educ in years similarity could be defined as absolute difference
+# since i am now dealing with categories, i use a "same" measure to measure educational similarity.
+df$sim_educ <- ifelse(df$ego_educ==df$alter_educ, 1, 0) # do not know (missing), here treated as dissimilar
+
+# and add tie strength, duration, physical proximity
+df$duration <- NA
+df$proximity <- NA
+df$frequency <- NA
+df$closeness <- NA
+
+for (i in unique(df$ego)) {
+  dur <- cbind(data$duur.SQ001.[i], data$duur.SQ002.[i], data$duur.SQ003.[i], data$duur.SQ004.[i], data$duur.SQ005.[i],
+               data$duur.SQ006.[i], data$duur.SQ007.[i], data$duur.SQ008.[i], data$duur.SQ009.[i], data$duur.SQ010.[i],
+               data$duur.SQ011.[i], data$duur.SQ012.[i], data$duur.SQ013.[i], data$duur.SQ014.[i], data$duur.SQ015.[i],
+               data$duur.SQ016.[i], data$duur.SQ017.[i], data$duur.SQ018.[i], data$duur.SQ019.[i], data$duur.SQ020.[i])
+  dur <- dur[!dur==""]
+  
+  prox <- cbind(data$prox.SQ001.[i], data$prox.SQ002.[i], data$prox.SQ003.[i], data$prox.SQ004.[i], data$prox.SQ005.[i],
+                data$prox.SQ006.[i], data$prox.SQ007.[i], data$prox.SQ008.[i], data$prox.SQ009.[i], data$prox.SQ010.[i],
+                data$prox.SQ011.[i], data$prox.SQ012.[i], data$prox.SQ013.[i], data$prox.SQ014.[i], data$prox.SQ015.[i],
+                data$prox.SQ016.[i], data$prox.SQ017.[i], data$prox.SQ018.[i], data$prox.SQ019.[i], data$prox.SQ020.[i])
+  prox <- prox[!prox==""]
+  
+  freq <- cbind(data$freq.SQ001.[i], data$freq.SQ002.[i], data$freq.SQ003.[i], data$freq.SQ004.[i], data$freq.SQ005.[i],
+                data$freq.SQ006.[i], data$freq.SQ007.[i], data$freq.SQ008.[i], data$freq.SQ009.[i], data$freq.SQ010.[i],
+                data$freq.SQ011.[i], data$freq.SQ012.[i], data$freq.SQ013.[i], data$freq.SQ014.[i], data$freq.SQ015.[i],
+                data$freq.SQ016.[i], data$freq.SQ017.[i], data$freq.SQ018.[i], data$freq.SQ019.[i], data$freq.SQ020.[i])
+  freq <- freq[!freq==""]
+  
+  close <- cbind(data$close.SQ001.[i], data$close.SQ002.[i], data$close.SQ003.[i], data$close.SQ004.[i], data$close.SQ005.[i],
+                 data$close.SQ006.[i], data$close.SQ007.[i], data$close.SQ008.[i], data$close.SQ009.[i], data$close.SQ010.[i],
+                 data$close.SQ011.[i], data$close.SQ012.[i], data$close.SQ013.[i], data$close.SQ014.[i], data$close.SQ015.[i],
+                 data$close.SQ016.[i], data$close.SQ017.[i], data$close.SQ018.[i], data$close.SQ019.[i], data$close.SQ020.[i])
+  close <- close[!close==""]
+  
+
+  for (j in unique(df$alter[which(df$ego==i)])) {
+    df$duration[which(df$ego==i & df$alter==j)] <- dur[j]
+    df$proximity[which(df$ego==i & df$alter==j)] <- prox[j]
+    df$frequency[which(df$ego==i & df$alter==j)] <- freq[j]
+    df$closeness[which(df$ego==i & df$alter==j)] <- close[j]
+  }
+}
+
+# recode
+# duration; take midpoint on scale.
+df$duration <- ifelse(df$duration=="Minder dan 1 jaar", 0, 
+                      ifelse(df$duration=="1 tot 3 jaar", 2,
+                             ifelse(df$duration=="4 tot 8 jaar", 6,
+                                    ifelse(df$duration=="9 tot 15 jaar", 12,
+                                           ifelse(df$duration=="Meer dan 15 jaar", 15, NA)))))
+# proximity: same municipality or closer.............
+df$proximity <- ifelse(df$proximity=="In de-zelfde buurt" |
+                         df$proximity=="In de-zelfde straat" |
+                         df$proximity=="In dezelfde ge-meente" |
+                         df$proximity=="In het-zelfde huis", 1, 0)
+
+# frequency: at least once a week.
+df$frequency <- ifelse(df$frequency=="(Bijna) elke dag" |
+                         df$frequency=="1-2 keer per week", 1,0)
+
+df$closeness <- ifelse(df$closeness=="Niet hecht", 1, 
+                       ifelse(df$closeness=="Enigszins hecht", 2,
+                              ifelse(df$closeness=="Hecht", 3,
+                                     ifelse(df$closeness=="Heel erg hecht", 4, NA
+                              ))))
 # save the dataset...
 save(df, file = "tie_maintenance.RData")
 ```
