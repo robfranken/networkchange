@@ -682,7 +682,7 @@ for (i in unique(df$ego)) { # for ego i
   }
 }
 
-# @RF; for now use 3 CBS categories; later on, operationalize education in years;
+# @RF; for now use 5 categories; later on, operationalize education in years;
 prim <- c("lagere school", "vmbo, mavo")
 lowsec <- c("mbo")
 highsec <- c( "havo", "vwo / gymnasium")
@@ -772,6 +772,10 @@ df$closeness <- ifelse(df$closeness=="Niet hecht", 1,
                               ifelse(df$closeness=="Hecht", 3,
                                      ifelse(df$closeness=="Heel erg hecht", 4, NA
                               ))))
+
+# remove last 2 egos (fake responses).
+df <- df[-which(df$ego==91 | df$ego==92, arr.ind=T), ]
+
 # save the dataset...
 save(df, file = "tie_maintenance.RData")
 ```

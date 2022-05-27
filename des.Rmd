@@ -39,26 +39,26 @@ klippy::klippy(position = c('top', 'right'))
   
   
   
-## Tie maintenance
+# Tie maintenance
 ```{r, echo=FALSE}
 rm(list=ls())
+
 load("tie_maintenance.RData")
 
 tab <- psych::describe(df$survive)
 tab<-tab[,c(8,9,3)]
 rownames(tab) <- "tie survived? (1=yes, 0=no)"
 
-
 knitr::kable(tab, digits=3, "html", caption="Tie maintenance among first-year students over approximately one year$^a$") %>%
   kableExtra::kable_styling(bootstrap_options = c("striped", "hover")) %>%
-  kableExtra::add_footnote("706 alters, nested in 92 students.", notation="alphabet")
+  kableExtra::add_footnote("690 alters, nested in 90 students.", notation="alphabet")
 
  
 
 ```
 <br>
 
-48 percent of all alters was maintained, 52 percent was dropped. This is a relatively high level of instability.
+50 percent of all alters was maintained.
 
 For comparison:
 
@@ -67,4 +67,3 @@ For comparison:
 
 
 <br>
-
