@@ -64,6 +64,7 @@ For comparison:
 
 - Marin and Hamption (2019)
 - Feld (1996)
+- Fisher and Offer (2020)
 
 
 <br>
@@ -82,7 +83,7 @@ Does similarity in political orientation predict tie maintenance?
 
 - Dissimilarity in political opinion (here, the absolute difference between ego and alter), decreases the probability of tie maintenance (Model 6: $OR_{ego-alter.diff.pol}$=0.87, *CI*=[0.76 – 0.99]).
 
-- Other dyadic features: age *dis*similarity predicts tie maintenance (probably due to kin often being older). Stronger ties, here in terms of contact frequency, are more stable. 
+- Other dyadic features: age *dis*similarity predicts tie maintenance (probably due to kin often being older). Stronger ties, here in terms of contact frequency, are more stable.
 
 
 
