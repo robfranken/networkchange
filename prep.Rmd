@@ -525,8 +525,6 @@ df$ego_gender <- NA
 df$ego_age <- NA
 df$ego_educ <- NA
 df$ego_pol <- NA
-#...
-#
 
 for (i in unique(df$ego)) { # for ego
   df$ego_gender[which(df$ego==i)] <- alterL[[i]]$ego_gender[1]
@@ -536,6 +534,188 @@ for (i in unique(df$ego)) { # for ego
   #@RF: perhaps add missing dummy for political orienation... interesting category?
 }
 
+# other ego-variables
+# merge data waves
+data$id <- 1:nrow(data)
+d <- merge(data, data2, by="email")
+# sort
+d <- data.frame(d[order(d$id, decreasing = F), ])
+
+df$housing <- NA # current living situation
+# @RF. ideally, i would calculate the distance in km between the two residencies.
+
+for (i in unique(df$ego)) {
+  df$housing[which(df$ego==i)] <- d$A4.x[i] # w1, half year prior to transition
+  
+  # if respondent does not still live here at w1, get current living situation
+  df$housing[which(df$ego==i)] <- ifelse(d$A6[i] == "Nee", d$A7[i], df$housing[which(df$ego==i)]) 
+  
+  # if respondent has moved since then, ...
+  df$housing[which(df$ego==i)] <- ifelse(d$A4.y[i] == "Ja" | d$A4b[i] == "Ja" | d$A4c[i] == "Ja", d$A4d[i], df$housing[which(df$ego==i)] )
+}
+
+# make housing categories...
+df$alone <- ifelse(df$housing=="alleen",1,0)
+df$parents <- ifelse(df$housing=="inwonend bij je ouder(s)/verzorger(s)",1,0)
+df$other <- ifelse(df$housing!="alleen" | df$housing!="inwonend bij je ouder(s)/verzorger(s)",1,0)
+library(dplyr)
+df<-df %>% select(-housing) # remove character variable.
+
+# add a dynamic attribute indicating residential move over the academic year (yes/no)
+df$housing_change <- NA
+for ( i in unique(df$ego)) {
+  df$housing_change[which(df$ego==i)] <- ifelse(d$A6[i] == "Nee" | d$A4.y[i] == "Ja" | d$A4b[i] == "Ja" | d$A4c[i] == "Ja", 1, 0)
+}
+
+# ego main occupation before transitioning to uni.
+df$sec_educ <- NA
+df$tert_educ <- NA
+df$work <- NA
+df$gapyr <- NA
+df$other <- NA
+
+for ( i in unique(df$ego)) {
+  df$sec_educ[which(df$ego==i)] <- ifelse(data$E1[i]=="Ik zat op de middelbare school",1,0)
+  df$tert_educ[which(df$ego==i)] <- ifelse(data$E1[i]=="Ik deed een MBO-, HBO- of WO-opleiding",1,0)
+  df$work[which(df$ego==i)] <-  ifelse(data$E1[i]=="Ik werkte",1,0)
+  df$gapyr[which(df$ego==i)] <- ifelse(data$E1[i]=="Ik had een tussenjaar",1,0)
+  df$other[which(df$ego==i)] <- ifelse(data$E1[i]=="Overige",1,0)
+}
+
+# being / becoming member of a formal organization (e.g., sports club, political party)
+# organizations ego is member of...
+# pre-transition
+f1 <- cbind(data$F1.SQ001.,data$F1.SQ002.,data$F1.SQ003.,data$F1.SQ004.,data$F1.SQ005.)
+# currently (w1)
+f2 <- cbind(data$F2.SQ001.,data$F2.SQ002.,data$F2.SQ003.,data$F2.SQ004.,data$F2.SQ005.)
+
+df$organization <- NA  # being member
+df$joined_org <- NA # became member after transition.
+
+for (i in unique(df$ego)) {
+  # if ego was member of at least one type of organization...
+  # give score 1:
+  df$organization[which(df$ego==i)] <- ifelse("Ja" %in% f2[i,], 1, 0)
+  
+  # if ego joined (at least) one organization...
+  # i.e., if ego was not member of the particular organization before tranistioning
+  # to uni, but he/she was after transitioning...
+  # give score 1 on the dynamic attribute
+  
+  ind <- which(f2[i,]=="Ja") # get organizations ego is member of...
+  # find out if ego was already member or not... 
+  df$joined_org[which(df$ego==i)] <- ifelse("Nee" %in% f1[i,ind],1,0)
+}
+
+# other organizations ego may have joined
+df$studiever <- NA
+df$studentver <- NA
+for (i in unique(df$ego)) {
+  df$studiever[which(df$ego==i)] <- ifelse(data$E4[i]=="Ja",1,0)
+  df$studentver[which(df$ego==i)] <- ifelse(data$E5[i]=="Ja",1,0)
+}
+
+# romantic relationship
+df$romantic <- NA
+for (i in unique(df$ego)) {
+  df$romantic[which(df$ego==i)] <- ifelse(data$R3[i] == "Ja", 1,0)
+}
+
+#loneliness:
+#https://www.cbs.nl/nl-nl/maatwerk/2020/52/eenzaamheid
+# 1) "Er zijn genoeg mensen op wie ik in geval van narigheid kan terugvallen" (social loneliness)
+# 2) "Ik mis mensen om me heen" (emotional loneliness)
+l <- cbind(d$stellingen.SQ001., d$stellingen.SQ002.)
+l <- ifelse(l=="Hele-maal oneens", 1,
+            ifelse(l=="Mee oneens", 2,
+                   # do not know = neutral... this category was sparsely populated 
+                   ifelse(l=="Neutraal" | l=="Ik weet het niet", 3, 
+                          ifelse(l=="Mee eens", 4,
+                                 ifelse(l=="Hele-maal eens", 5, l)))))
+# turn the first indicator, so that higher scores indicate "more" loneliness.
+l[,1] <- 6-as.numeric(l[,1])
+
+#extraversion
+# 1) "Ik ben communicatief, een gezelschapsmens"
+# 2) "Ik ben soms verlegen, introvert"
+e <- cbind(d$stellingen.SQ003., d$stellingen.SQ006.)
+e <- ifelse(e=="Hele-maal oneens", 1,
+            ifelse(e=="Mee oneens", 2,
+                   ifelse(e=="Neutraal" | e=="Ik weet het niet", 3, 
+                          ifelse(e=="Mee eens", 4,
+                                 ifelse(e=="Hele-maal eens", 5, e)))))
+# turn the second indicator
+e[,2] <- 6-as.numeric(e[,2])
+
+# calculate averages.
+df$loneliness <- NA
+df$extraversion <- NA
+
+for (i in unique(df$ego)) {
+  l_scores <- as.numeric(l[i,])
+  e_scores <- as.numeric(e[i,])
+  df$loneliness[which(df$ego==i)] <- mean(l_scores)
+  df$extraversion[which(df$ego==i)] <- mean(e_scores)
+}
+
+# study load may hinder social interaction...
+# "Ik heb het gevoel dat ik veel dingen mis doordat ik veel tijd kwijt ben aan mijn studie"
+df$study_load <- NA
+for (i in unique(df$ego)) {
+  df$study_load[which(df$ego==i)] <- d$stellingen.SQ004.[i]
+}
+# recode
+df$study_load <- ifelse(df$study_load=="Hele-maal oneens", 1,
+            ifelse(df$study_load=="Mee oneens", 2,
+                   ifelse(df$study_load=="Neutraal" | df$study_load=="Ik weet het niet", 3, 
+                          ifelse(df$study_load=="Mee eens", 4,
+                                 ifelse(df$study_load=="Hele-maal eens", 5, df$study_load)))))
+
+# financial restrictions for social interaction
+# "Maak je het mee dat je activiteiten of uitstapjes met vrienden moet missen omdat je je deze niet financieel kunt veroorloven?"
+df$fin_restr <- NA
+for (i in unique(df$ego)) {
+  df$fin_restr[which(df$ego==i)] <- d$G01Q111[i]
+}
+df$fin_restr <- ifelse(df$fin_restr=="Nooit",0,
+                       ifelse(df$fin_restr=="Soms",1,
+                              ifelse(df$fin_restr=="Vaak",2,
+                                     ifelse(df$fin_restr=="Altijd",3, NA))))
+# 0. never; 1. sometimes; 2. often; 3. always
+
+# covid! worries/anxiety about covid may reduce social interaction;
+# but also the feelings of people in your social circle of course.
+# @RF: i include worries/anxiety about the DELTA-variant (i.e., during summer holidays)
+# this may affect tie maintenance during the transition to uni...
+df$ego_covid_anx <- NA
+df$alters_covid_anx <- NA
+for (i in unique(df$ego)) {
+  df$ego_covid_anx[which(df$ego==i)] <- d$covid.SQ001.[i]
+  df$alters_covid_anx[which(df$ego==i)] <- d$covid.SQ002.[i]
+}
+# recode
+df$alters_covid_anx <- ifelse(df$alters_covid_anx=="Hele-maal oneens", 1,
+                              ifelse(df$alters_covid_anx=="Mee oneens", 2,
+                                     ifelse(df$alters_covid_anx=="Neu-traal" | df$alters_covid_anx=="Ik weet het niet" , 3,
+                                            ifelse(df$alters_covid_anx=="Mee eens", 4,  
+                                                   ifelse(df$alters_covid_anx=="Hele-maal eens", 5, df$alters_covid_anx)))))
+df$ego_covid_anx <- ifelse(df$ego_covid_anx=="Hele-maal oneens", 1,
+                              ifelse(df$ego_covid_anx=="Mee oneens", 2,
+                                     ifelse(df$ego_covid_anx=="Neu-traal" | df$ego_covid_anx=="Ik weet het niet" , 3,
+                                            ifelse(df$ego_covid_anx=="Mee eens", 4,  
+                                                   ifelse(df$ego_covid_anx=="Hele-maal eens", 5, df$ego_covid_anx)))))
+
+####
+# @RF. add network variables
+# size (no. of unique alters); density (unfortunately, i only know this per ego-net)
+df$netsize <- NA
+for (i in unique(df$ego)) {
+  df$netsize[which(df$ego==i)] <- nrow(alterL[[i]])
+}
+##...
+
+#######
+# to the alter level!
 # make alter ids per ego
 df$alter <- NA
 for (i in unique(df$ego)) {
@@ -741,7 +921,7 @@ for (i in unique(df$ego)) {
                  data$close.SQ016.[i], data$close.SQ017.[i], data$close.SQ018.[i], data$close.SQ019.[i], data$close.SQ020.[i])
   close <- close[!close==""]
   
-
+  
   for (j in unique(df$alter[which(df$ego==i)])) {
     df$duration[which(df$ego==i & df$alter==j)] <- dur[j]
     df$proximity[which(df$ego==i & df$alter==j)] <- prox[j]
@@ -771,7 +951,7 @@ df$closeness <- ifelse(df$closeness=="Niet hecht", 1,
                        ifelse(df$closeness=="Enigszins hecht", 2,
                               ifelse(df$closeness=="Hecht", 3,
                                      ifelse(df$closeness=="Heel erg hecht", 4, NA
-                              ))))
+                                     ))))
 
 # remove last 2 egos (fake responses).
 df <- df[-which(df$ego==91 | df$ego==92, arr.ind=T), ]

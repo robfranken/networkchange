@@ -69,6 +69,7 @@ For comparison:
 
 <br>
 
+
 ----
 
 # Political homophily?
@@ -77,18 +78,16 @@ Does similarity in political orientation predict tie maintenance?
 
 <br>
 
-- The more "extreme" egos political attitude (be it left or right), the higher the probability of maintaining ties (Model 6: $OR_{ego.pol}$=1.26, *CI*=[1.04 – 1.53]).
+- The more "extreme" egos political attitude (be it left or right), the higher the probability of maintaining ties (Model 6: $OR_{ego.pol}$=1.26, *CI*=[1.03 – 1.55]).
 
-- A positive but not significant alter-effect of political attitude (Model 6: $OR_{alter.pol}$=1.08, *CI*=[0.91 – 1.28]).
+- A positive but not significant alter-effect of political attitude (Model 3: $OR_{alter.pol}$=1.09, *CI*=[0.93 – 1.28]).
 
-- Dissimilarity in political opinion (here, the absolute difference between ego and alter), decreases the probability of tie maintenance (Model 6: $OR_{ego-alter.diff.pol}$=0.87, *CI*=[0.76 – 0.99]).
+- Dissimilarity in political opinion (here, the absolute difference between ego and alter), decreases the probability of tie maintenance (Model 6: $OR_{ego-alter.diff.pol}$=0.87, *CI*=[0.76 – 1.00]).
 
-- Other dyadic features: age *dis*similarity predicts tie maintenance (probably due to kin often being older). Stronger ties, here in terms of contact frequency, are more stable.
-
-
+- Other dyadic features: age *dis*similarity predicts tie maintenance (probably due to kin often being older). Stronger ties, here in terms of contact frequency and emotional connection, are more stable.
 
 
-```{r,class.source = 'fold-hide'}
+```{r,class.source = 'fold-hide', eval=F}
 library(lme4) # fitting random effects models
 library(sjPlot) # plot functions
 
@@ -105,44 +104,65 @@ df$ego_gender <- ifelse(df$ego_gender==2, 1, df$ego_gender)
 # empty model
 m1 <- glmer ( survive ~ 1 + (1 | ego), data=df, family = "binomial")
 
-# add ego and alter political orienation (0-10
-m2 <- glmer ( survive ~ ego_pol_abs + alter_pol_abs + (1 | ego), data=df, family = "binomial")
-# egos with more "extreme" orientation are predicted to maintain ties more often.
+# build increasingly complex model
+# basic ego-demographics
+m2 <- glmer ( survive ~ ego_gender + ego_age + (1 | ego), data=df, family = "binomial") 
+# psychological attributes (loneliness, extraversion)
+m3 <- glmer ( survive ~ ego_gender + ego_age + loneliness + extraversion + (1 | ego), data=df, family = "binomial") 
+# financial restrictions
+m4 <- glmer ( survive ~ ego_gender + ego_age + loneliness + extraversion + fin_restr + (1 | ego), data=df, family = "binomial") 
+# add ego political orientation
+m5 <- glmer ( survive ~ ego_gender + ego_age + loneliness + extraversion + fin_restr + ego_pol_abs + (1 | ego), data=df, family = "binomial") 
 
-# add ego covariates
-# leave out education; variation too low.
-m3 <- glmer ( survive ~ ego_pol_abs + ego_gender + ego_age + alter_pol_abs + (1 | ego), data=df, family = "binomial")
+# add alter orientation 
+m6 <- glmer ( survive ~ ego_gender + ego_age + loneliness + extraversion + ego_pol_abs +
+               alter_pol_abs + (1 | ego), data=df, family = "binomial") 
+# and similarity (difference score)
+m7 <- glmer ( survive ~ ego_gender + ego_age + loneliness + extraversion + ego_pol_abs +
+               dif_pol + (1 | ego), data=df, family = "binomial")
+# add other dyadic similarity measures
+m8 <- glmer ( survive ~ ego_gender + ego_age + loneliness + extraversion + ego_pol_abs +
+               dif_pol + sim_educ + same_gender + dif_age + (1 | ego), data=df, family = "binomial")
+# add dyadic feature indicating tie strength
+m9 <- glmer ( survive ~ ego_gender + ego_age + loneliness + extraversion + ego_pol_abs +
+               dif_pol + sim_educ + same_gender + dif_age  +  frequency + closeness + (1 | ego), data=df, family = "binomial")
 
-# alter covariates: education (age and gender give convergence issues)
-m4 <- glmer ( survive ~ ego_pol_abs + ego_gender + ego_age + alter_pol_abs + alter_educ + (1 | ego), data=df, family = "binomial")
-
-# political orientation similarity / difference
-m5 <- glmer ( survive ~ ego_pol_abs + ego_gender + ego_age + alter_pol_abs + alter_educ + dif_pol +  (1 | ego), data=df, family = "binomial")
-
-# other dyadic featuers
-m6 <- glmer ( survive ~ ego_pol_abs + ego_gender + ego_age + alter_pol_abs + alter_educ + dif_pol + dif_age + sim_educ + frequency  + (1 | ego), data=df, family = "binomial")
-
+# last, add dynamic contextual variables,
+# indicating whether ego experienced a residential transition over the academic year / whether ego became member of new
+# (formal) organizations after transitioning to uni. 
+m10 <- glmer ( survive ~ ego_gender + ego_age + loneliness + extraversion + ego_pol_abs +
+               dif_pol + sim_educ + same_gender + dif_age  + frequency + closeness + housing_change + joined_org + (1 | ego), data=df, family = "binomial")
 # pred labels
 pl <- c(
   `(Intercept)` = "(Intercept)",
   ego_pol_abs = "Ego political orientation (0-5)",
   ego_gender = "Ego gender (ref. = male)",
   ego_age = "Ego age (in years)",
+  extraversion = "Extraversion",
+  loneliness = "Loneliness",
+  fin_restr = "Financial restrictions",
   alter_pol_abs = "Alter political orientation (0-5)",
   alter_educ = "Alter education",
   dif_pol = "Ego-alter diff. pol. orientation",
   dif_age = "Ego-alter diff. age",
   sim_educ = "Same education",
-  frequency = "Contact frequency"
-)
+  same_gender = "Same gender",
+  frequency = "Contact frequency",
+  closeness = "Emotional closeness",
+  housing_change = "Residential change",
+  joined_org = "Joined (formal) organization(s)")
 
 # table
-tab_model(m1,m2,m3,m4,m5,m6,
-          dv.labels = c("Model 1 (empty)", "Model 2 (ego + alter)", "Model 3 (ego covars)", "Model 4 (alter covars)", "Model 5 (similarity)", "Model 6 (dyad covars)"),
+tab_model(m1,m5,m6,m8,m9,m10,
+          dv.labels = c("Model 1 (empty)", "Model 2 (ego attributes)", "Model 3 (alter attributes)", "Model 4 (similarity)","Model 5 (dyad covars)", "Model 6 (life events)"),
           p.style="stars",
-          title="Table 1. Ego, alter and dyad effects of political orientation on tie maintenance",
+          title="Table 1. Effects on tie maintenance",
           string.est="OR",
-          order.terms = c(1,2,4,5,3,6,7,8,9,10),
+          file="analyses/table1.html",
           pred.labels = pl)
 
+```
+
+```{r, echo=FALSE}
+htmltools::includeHTML("analyses/table1.html")
 ```
