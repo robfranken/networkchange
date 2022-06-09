@@ -1,0 +1,1425 @@
+setwd("C:/Users/u244147/Documents/dissertatie/network stability/data/test")
+
+
+rm(list=ls())
+# load in the data of wave 1
+data <- read.csv("results-survey938243.csv") 
+# also data of wave 2
+# after all, I want to study tie maintenance
+data2 <- read.csv("results-survey868275.csv")
+
+# subset respondents that filled out both surveys;
+# by matching based on emailadress
+data <- data[which(data$email %in% unique(data2$email)),]
+#nrow(data) #n=95
+
+# i make a dataframe of alters, with potential duplicates...
+df_names <- data.frame(
+  p1 = data$egonet1.SQ001.,
+  p2 = data$egonet1.SQ002.,
+  p3 = data$egonet1.SQ003.,
+  p4 = data$egonet1.SQ004.,
+  p5 = data$egonet1.SQ005.,
+  p6 = data$egonet2.SQ001.,
+  p7 = data$egonet2.SQ002.,
+  p8 = data$egonet2.SQ003.,
+  p9 = data$egonet2.SQ004.,
+  p10= data$egonet2.SQ005.,
+  p11= data$egonet3.SQ001.,
+  p12= data$egonet3.SQ002.,
+  p13= data$egonet3.SQ003.,
+  p14= data$egonet3.SQ004.,
+  p15= data$egonet3.SQ005.,
+  p16= data$egonet4.SQ001.,
+  p17= data$egonet4.SQ002.,
+  p18= data$egonet4.SQ003.,
+  p19= data$egonet4.SQ004.,
+  p20= data$egonet4.SQ005.)
+
+# i exclude the isolates 
+isolates <- which(rowSums(df_names=="")==20) #i.e., 20 empty name fields
+df_names <- df_names[-isolates, ]
+#nrow(df_names) #n=92
+
+# i also filter these out from our raw data...
+data <- data[-isolates,]
+
+# i make a list of data-frames (per ego) with rows reflecting alters;
+# a column indicating the alter number, 1:20
+# and 4 columns indicating the name(s) of the particular alter
+# after all, an alter could, hypothetically, be listed 4 times, with different
+# names
+# i also add variables for ego-level characteristics ("constant" over alter);
+# and alter- and dyadic features
+alterL <- list()
+# loop over all egos
+for ( i in 1:nrow(df_names)) {
+  alterL[[i]] <- data.frame(
+    ego_gender = NA,
+    ego_educ = NA,
+    ego_age = NA,
+    ego_pol = NA, 
+    alterid = 1:20,
+    name1 = NA,
+    name2 = NA,
+    name3 = NA,
+    name4 = NA,
+    # alter level
+    alter_gender = NA,
+    alter_educ = NA,
+    alter_age = NA,
+    alter_pol = NA,
+    # ...
+    # dyadic level
+    same_gender = NA,
+    sim_educ = NA,
+    dif_age = NA,
+    dif_pol = NA, #similarity in political placement (left-right) of ego and alter
+    close = NA,   #emotional closeness
+    con_freq = NA,#contact frequency
+    tie_dur = NA, #tie duration
+    prox = NA     #physical proximity
+    # ...
+    # @RF... to add: other ego-variables, str. embeddedness, 
+    # network-variables (e.g., size,density);
+    # context; ideally, dynamic measures, i.e., measures of change in variables
+    # pertaining to demographic features (e.g., life events: change of residency etc.)
+  )
+}
+
+# fill the names based on the names data-frame
+for ( i in 1:length(alterL)) {
+  alterL[[i]]$name1 <- unlist(df_names[i, ], use.names=F)
+}
+
+# replace empty strings with <NA>
+for (i in 1:length(alterL)) {
+  alterL[[i]]$name1 <- ifelse(alterL[[i]]$name1=="", NA, alterL[[i]]$name1)
+}
+
+# a matching matrix allowed ego to match names that referred to the same person.
+# unfortunately, in limesurvey, i could not let the number of columns condition
+# on the number of alters named in the latest net, so i made 5 separate matrices,
+# conditional on netsize.
+# i calculate netsize for each net
+{
+  net1 <- cbind(data$egonet1.SQ001.,data$egonet1.SQ002., data$egonet1.SQ003.,data$egonet1.SQ004., data$egonet1.SQ005.)
+  net1 <- ifelse(net1=="", NA, net1)
+  ns1 <- vector()
+  for (i in 1:nrow(net1)) {
+    ns1[i] <- length(net1[i,][which(!is.na(net1[i,]))])
+  }
+  net2 <- cbind(data$egonet2.SQ001.,data$egonet2.SQ002., data$egonet2.SQ003.,data$egonet2.SQ004., data$egonet2.SQ005.)
+  net2 <- ifelse(net2=="", NA, net2)
+  ns2 <- vector()
+  for (i in 1:nrow(net2)) {
+    ns2[i] <- length(net2[i,][which(!is.na(net2[i,]))])
+  }
+  net3 <- cbind(data$egonet3.SQ001.,data$egonet3.SQ002., data$egonet3.SQ003.,data$egonet3.SQ004., data$egonet3.SQ005.)
+  net3 <- ifelse(net3=="", NA, net3)
+  ns3 <- vector()
+  for (i in 1:nrow(net3)) {
+    ns3[i] <- length(net3[i,][which(!is.na(net3[i,]))])
+  }
+  net4 <- cbind(data$egonet4.SQ001.,data$egonet4.SQ002., data$egonet4.SQ003.,data$egonet4.SQ004., data$egonet4.SQ005.)
+  net4 <- ifelse(net4=="", NA, net4)
+  ns4 <- vector()
+  for (i in 1:nrow(net4)) {
+    ns4[i] <- length(net4[i,][which(!is.na(net4[i,]))])
+  }
+}
+
+# i construct the matching matrices, 1 - 5 (conditional on the ns of the latest net)
+# put these in a list
+# and list these again, for each respondent
+# so a list of lists...
+matchingList <- list()
+for (i in 1:length(alterL)) { # for ego i
+  matchingL <- list()
+  # make 5 seperate matching matrices. naturally, only 1 is relevant... but i will select that later.
+  matchingL[[1]] <- cbind(data$matching1N1.SQ001_SQ001.[i],data$matching1N1.SQ002_SQ001.[i],data$matching1N1.SQ003_SQ001.[i],data$matching1N1.SQ004_SQ001.[i],data$matching1N1.SQ005_SQ001.[i])
+  matchingL[[2]]<- rbind(
+    cbind(data$matching1N2.SQ001_SQ001.[i], data$matching1N2.SQ002_SQ001.[i], data$matching1N2.SQ003_SQ001.[i], data$matching1N2.SQ004_SQ001.[i], data$matching1N2.SQ005_SQ001.[i]),
+    cbind(data$matching1N2.SQ001_SQ002.[i], data$matching1N2.SQ002_SQ002.[i], data$matching1N2.SQ003_SQ002.[i], data$matching1N2.SQ004_SQ002.[i], data$matching1N2.SQ005_SQ002.[i]))
+  matchingL[[3]]<- rbind(
+    cbind(data$matching1N3.SQ001_SQ001.[i], data$matching1N3.SQ002_SQ001.[i], data$matching1N3.SQ003_SQ001.[i], data$matching1N3.SQ004_SQ001.[i], data$matching1N3.SQ005_SQ001.[i]),
+    cbind(data$matching1N3.SQ001_SQ002.[i], data$matching1N3.SQ002_SQ002.[i], data$matching1N3.SQ003_SQ002.[i], data$matching1N3.SQ004_SQ002.[i], data$matching1N3.SQ005_SQ002.[i]),
+    cbind(data$matching1N3.SQ001_SQ003.[i], data$matching1N3.SQ002_SQ003.[i], data$matching1N3.SQ003_SQ003.[i], data$matching1N3.SQ004_SQ003.[i], data$matching1N3.SQ005_SQ003.[i]))
+  matchingL[[4]]<- rbind(
+    cbind(data$matching1N4.SQ001_SQ001.[i], data$matching1N4.SQ002_SQ001.[i], data$matching1N4.SQ003_SQ001.[i], data$matching1N4.SQ004_SQ001.[i], data$matching1N4.SQ005_SQ001.[i]),
+    cbind(data$matching1N4.SQ001_SQ002.[i], data$matching1N4.SQ002_SQ002.[i], data$matching1N4.SQ003_SQ002.[i], data$matching1N4.SQ004_SQ002.[i], data$matching1N4.SQ005_SQ002.[i]),
+    cbind(data$matching1N4.SQ001_SQ003.[i], data$matching1N4.SQ002_SQ003.[i], data$matching1N4.SQ003_SQ003.[i], data$matching1N4.SQ004_SQ003.[i], data$matching1N4.SQ005_SQ003.[i]),
+    cbind(data$matching1N4.SQ001_SQ004.[i], data$matching1N4.SQ002_SQ004.[i], data$matching1N4.SQ003_SQ004.[i], data$matching1N4.SQ004_SQ004.[i], data$matching1N4.SQ005_SQ004.[i]))
+  matchingL[[5]]<- rbind(
+    cbind(data$matching1N5.SQ001_SQ001.[i], data$matching1N5.SQ002_SQ001.[i], data$matching1N5.SQ003_SQ001.[i], data$matching1N5.SQ004_SQ001.[i], data$matching1N5.SQ005_SQ001.[i]),
+    cbind(data$matching1N5.SQ001_SQ002.[i], data$matching1N5.SQ002_SQ002.[i], data$matching1N5.SQ003_SQ002.[i], data$matching1N5.SQ004_SQ002.[i], data$matching1N5.SQ005_SQ002.[i]),
+    cbind(data$matching1N5.SQ001_SQ003.[i], data$matching1N5.SQ002_SQ003.[i], data$matching1N5.SQ003_SQ003.[i], data$matching1N5.SQ004_SQ003.[i], data$matching1N5.SQ005_SQ003.[i]),
+    cbind(data$matching1N5.SQ001_SQ004.[i], data$matching1N5.SQ002_SQ004.[i], data$matching1N5.SQ003_SQ004.[i], data$matching1N5.SQ004_SQ004.[i], data$matching1N5.SQ005_SQ004.[i]),
+    cbind(data$matching1N5.SQ001_SQ005.[i], data$matching1N5.SQ002_SQ005.[i], data$matching1N5.SQ003_SQ005.[i], data$matching1N5.SQ004_SQ005.[i], data$matching1N5.SQ005_SQ005.[i]))
+  matchingList[[i]] <- matchingL
+} # so... matchingL[[1]][[5]] is matchingmatrix 5 (i.e., 5 alters named in egonet2) for ego 1
+
+# the combination of the matching matrices and the netsizes for ego allows me to match the names myself.
+for (i in 1:length(matchingList)) {     # for ego i
+  mL <- matchingList[[i]]               # get the matching list
+  ns <- ns2[[i]]                        # get the size of egonet2
+  if(ns>0) {                            # if ns=0, no matching was done!
+    mm <- as.matrix(mL[[ns]])           # retrieve the corresponding matrix
+    matched <- which(mm==1, arr.ind=T)  # retrieve array indices
+    net <- net2[i,]
+    if(length(matched)>0) {             # if matching was performed!
+      alterL[[i]]$name2[which(alterL[[i]]$alterid==matched[,2])] <- net[matched[,1]]
+    }
+  }
+}
+
+# again, make a matching list for the second matching matrices
+# (i.e., matching egonet3 alters to prev. alters);
+matchingList2 <- list()
+for (i in 1:length(alterL)) { # for ego i
+  matching2L <- list()
+  matching2L[[1]] <- cbind(data$matching2N1.SQ001_SQ001.[i],data$matching2N1.SQ002_SQ001.[i],data$matching2N1.SQ003_SQ001.[i],data$matching2N1.SQ004_SQ001.[i],data$matching2N1.SQ005_SQ001.[i],data$matching2N1.SQ006_SQ001.[i],data$matching2N1.SQ007_SQ001.[i],data$matching2N1.SQ008_SQ001.[i],data$matching2N1.SQ009_SQ001.[i],data$matching2N1.SQ010_SQ001.[i])
+  matching2L[[2]] <- rbind(
+    cbind(data$matching2N2.SQ001_SQ001.[i],data$matching2N2.SQ002_SQ001.[i],data$matching2N2.SQ003_SQ001.[i],data$matching2N2.SQ004_SQ001.[i],data$matching2N2.SQ005_SQ001.[i],data$matching2N2.SQ006_SQ001.[i],data$matching2N2.SQ007_SQ001.[i],data$matching2N2.SQ008_SQ001.[i],data$matching2N2.SQ009_SQ001.[i],data$matching2N2.SQ010_SQ001.[i]),
+    cbind(data$matching2N2.SQ001_SQ002.[i],data$matching2N2.SQ002_SQ002.[i],data$matching2N2.SQ003_SQ002.[i],data$matching2N2.SQ004_SQ002.[i],data$matching2N2.SQ005_SQ002.[i],data$matching2N2.SQ006_SQ002.[i],data$matching2N2.SQ007_SQ002.[i],data$matching2N2.SQ008_SQ002.[i],data$matching2N2.SQ009_SQ002.[i],data$matching2N2.SQ010_SQ002.[i]))
+  matching2L[[3]] <- rbind(
+    cbind(data$matching2N3.SQ001_SQ001.[i],data$matching2N3.SQ002_SQ001.[i],data$matching2N3.SQ003_SQ001.[i],data$matching2N3.SQ004_SQ001.[i],data$matching2N3.SQ005_SQ001.[i],data$matching2N3.SQ006_SQ001.[i],data$matching2N3.SQ007_SQ001.[i],data$matching2N3.SQ008_SQ001.[i],data$matching2N3.SQ009_SQ001.[i],data$matching2N3.SQ010_SQ001.[i]),
+    cbind(data$matching2N3.SQ001_SQ002.[i],data$matching2N3.SQ002_SQ002.[i],data$matching2N3.SQ003_SQ002.[i],data$matching2N3.SQ004_SQ002.[i],data$matching2N3.SQ005_SQ002.[i],data$matching2N3.SQ006_SQ002.[i],data$matching2N3.SQ007_SQ002.[i],data$matching2N3.SQ008_SQ002.[i],data$matching2N3.SQ009_SQ002.[i],data$matching2N3.SQ010_SQ002.[i]),
+    cbind(data$matching2N3.SQ001_SQ003.[i],data$matching2N3.SQ002_SQ003.[i],data$matching2N3.SQ003_SQ003.[i],data$matching2N3.SQ004_SQ003.[i],data$matching2N3.SQ005_SQ003.[i],data$matching2N3.SQ006_SQ003.[i],data$matching2N3.SQ007_SQ003.[i],data$matching2N3.SQ008_SQ003.[i],data$matching2N3.SQ009_SQ003.[i],data$matching2N3.SQ010_SQ003.[i]))
+  matching2L[[4]] <- rbind(
+    cbind(data$matching2N4.SQ001_SQ001.[i],data$matching2N4.SQ002_SQ001.[i],data$matching2N4.SQ003_SQ001.[i],data$matching2N4.SQ004_SQ001.[i],data$matching2N4.SQ005_SQ001.[i],data$matching2N4.SQ006_SQ001.[i],data$matching2N4.SQ007_SQ001.[i],data$matching2N4.SQ008_SQ001.[i],data$matching2N4.SQ009_SQ001.[i],data$matching2N4.SQ010_SQ001.[i]),
+    cbind(data$matching2N4.SQ001_SQ002.[i],data$matching2N4.SQ002_SQ002.[i],data$matching2N4.SQ003_SQ002.[i],data$matching2N4.SQ004_SQ002.[i],data$matching2N4.SQ005_SQ002.[i],data$matching2N4.SQ006_SQ002.[i],data$matching2N4.SQ007_SQ002.[i],data$matching2N4.SQ008_SQ002.[i],data$matching2N4.SQ009_SQ002.[i],data$matching2N4.SQ010_SQ002.[i]),
+    cbind(data$matching2N4.SQ001_SQ003.[i],data$matching2N4.SQ002_SQ003.[i],data$matching2N4.SQ003_SQ003.[i],data$matching2N4.SQ004_SQ003.[i],data$matching2N4.SQ005_SQ003.[i],data$matching2N4.SQ006_SQ003.[i],data$matching2N4.SQ007_SQ003.[i],data$matching2N4.SQ008_SQ003.[i],data$matching2N4.SQ009_SQ003.[i],data$matching2N4.SQ010_SQ003.[i]),
+    cbind(data$matching2N4.SQ001_SQ004.[i],data$matching2N4.SQ002_SQ004.[i],data$matching2N4.SQ003_SQ004.[i],data$matching2N4.SQ004_SQ004.[i],data$matching2N4.SQ005_SQ004.[i],data$matching2N4.SQ006_SQ004.[i],data$matching2N4.SQ007_SQ004.[i],data$matching2N4.SQ008_SQ004.[i],data$matching2N4.SQ009_SQ004.[i],data$matching2N4.SQ010_SQ004.[i]))
+  matching2L[[5]] <- rbind(
+    cbind(data$matching2N5.SQ001_SQ001.[i],data$matching2N5.SQ002_SQ001.[i],data$matching2N5.SQ003_SQ001.[i],data$matching2N5.SQ004_SQ001.[i],data$matching2N5.SQ005_SQ001.[i],data$matching2N5.SQ006_SQ001.[i],data$matching2N5.SQ007_SQ001.[i],data$matching2N5.SQ008_SQ001.[i],data$matching2N5.SQ009_SQ001.[i],data$matching2N5.SQ010_SQ001.[i]),
+    cbind(data$matching2N5.SQ001_SQ002.[i],data$matching2N5.SQ002_SQ002.[i],data$matching2N5.SQ003_SQ002.[i],data$matching2N5.SQ004_SQ002.[i],data$matching2N5.SQ005_SQ002.[i],data$matching2N5.SQ006_SQ002.[i],data$matching2N5.SQ007_SQ002.[i],data$matching2N5.SQ008_SQ002.[i],data$matching2N5.SQ009_SQ002.[i],data$matching2N5.SQ010_SQ002.[i]),
+    cbind(data$matching2N5.SQ001_SQ003.[i],data$matching2N5.SQ002_SQ003.[i],data$matching2N5.SQ003_SQ003.[i],data$matching2N5.SQ004_SQ003.[i],data$matching2N5.SQ005_SQ003.[i],data$matching2N5.SQ006_SQ003.[i],data$matching2N5.SQ007_SQ003.[i],data$matching2N5.SQ008_SQ003.[i],data$matching2N5.SQ009_SQ003.[i],data$matching2N5.SQ010_SQ003.[i]),
+    cbind(data$matching2N5.SQ001_SQ004.[i],data$matching2N5.SQ002_SQ004.[i],data$matching2N5.SQ003_SQ004.[i],data$matching2N5.SQ004_SQ004.[i],data$matching2N5.SQ005_SQ004.[i],data$matching2N5.SQ006_SQ004.[i],data$matching2N5.SQ007_SQ004.[i],data$matching2N5.SQ008_SQ004.[i],data$matching2N5.SQ009_SQ004.[i],data$matching2N5.SQ010_SQ004.[i]),
+    cbind(data$matching2N5.SQ001_SQ005.[i],data$matching2N5.SQ002_SQ005.[i],data$matching2N5.SQ003_SQ005.[i],data$matching2N5.SQ004_SQ005.[i],data$matching2N5.SQ005_SQ005.[i],data$matching2N5.SQ006_SQ005.[i],data$matching2N5.SQ007_SQ005.[i],data$matching2N5.SQ008_SQ005.[i],data$matching2N5.SQ009_SQ005.[i],data$matching2N5.SQ010_SQ005.[i]))
+  matchingList2[[i]] <- matching2L
+}
+
+for (i in 1:length(matchingList2)) {    # for ego i
+  mL <- matchingList2[[i]]              # get the matching list 2
+  ns <- ns3[[i]]                        # get the size of egonet3
+  if(ns>0) {                            # if ns=0, no matching was done!
+    mm <- as.matrix(mL[[ns]])           # and the corresponding matrix
+    matched <- which(mm==1, arr.ind=T)  # retrieve array indices
+    net <- net3[i,]
+    
+    if(length(matched)>0) {             # if matching was performed!
+      alterL[[i]]$name3[matched[,2]] <- net[matched[,1]]
+    }
+  }
+}
+
+# same for matching 3 (i.e., egonet4 with egonets 1-3)
+matchingList3 <- list()
+for (i in 1:length(alterL)) { # for ego i
+  matching3L <- list()
+  matching3L[[1]] <- cbind(data$matching3N1.SQ001_SQ001.[i],data$matching3N1.SQ002_SQ001.[i],data$matching3N1.SQ003_SQ001.[i],data$matching3N1.SQ004_SQ001.[i],data$matching3N1.SQ005_SQ001.[i],data$matching3N1.SQ006_SQ001.[i],data$matching3N1.SQ007_SQ001.[i],data$matching3N1.SQ008_SQ001.[i],data$matching3N1.SQ009_SQ001.[i],data$matching3N1.SQ010_SQ001.[i], data$matching3N1.SQ011_SQ001.[i], data$matching3N1.SQ012_SQ001.[i], data$matching3N1.SQ013_SQ001.[i], data$matching3N1.SQ014_SQ001.[i], data$matching3N1.SQ015_SQ001.[i])
+  matching3L[[2]] <- rbind(
+    cbind(data$matching3N2.SQ001_SQ001.[i],data$matching3N2.SQ002_SQ001.[i],data$matching3N2.SQ003_SQ001.[i],data$matching3N2.SQ004_SQ001.[i],data$matching3N2.SQ005_SQ001.[i],data$matching3N2.SQ006_SQ001.[i],data$matching3N2.SQ007_SQ001.[i],data$matching3N2.SQ008_SQ001.[i],data$matching3N2.SQ009_SQ001.[i],data$matching3N2.SQ010_SQ001.[i], data$matching3N2.SQ011_SQ001.[i], data$matching3N2.SQ012_SQ001.[i], data$matching3N2.SQ013_SQ001.[i], data$matching3N2.SQ014_SQ001.[i], data$matching3N2.SQ015_SQ001.[i]),
+    cbind(data$matching3N2.SQ001_SQ002.[i],data$matching3N2.SQ002_SQ002.[i],data$matching3N2.SQ003_SQ002.[i],data$matching3N2.SQ004_SQ002.[i],data$matching3N2.SQ005_SQ002.[i],data$matching3N2.SQ006_SQ002.[i],data$matching3N2.SQ007_SQ002.[i],data$matching3N2.SQ008_SQ002.[i],data$matching3N2.SQ009_SQ002.[i],data$matching3N2.SQ010_SQ002.[i], data$matching3N2.SQ011_SQ002.[i], data$matching3N2.SQ012_SQ002.[i], data$matching3N2.SQ013_SQ002.[i], data$matching3N2.SQ014_SQ002.[i], data$matching3N2.SQ015_SQ002.[i]))
+  matching3L[[3]] <- rbind(
+    cbind(data$matching3N3.SQ001_SQ001.[i],data$matching3N3.SQ002_SQ001.[i],data$matching3N3.SQ003_SQ001.[i],data$matching3N3.SQ004_SQ001.[i],data$matching3N3.SQ005_SQ001.[i],data$matching3N3.SQ006_SQ001.[i],data$matching3N3.SQ007_SQ001.[i],data$matching3N3.SQ008_SQ001.[i],data$matching3N3.SQ009_SQ001.[i],data$matching3N3.SQ010_SQ001.[i], data$matching3N3.SQ011_SQ001.[i], data$matching3N3.SQ012_SQ001.[i], data$matching3N3.SQ013_SQ001.[i], data$matching3N3.SQ014_SQ001.[i], data$matching3N3.SQ015_SQ001.[i]),
+    cbind(data$matching3N3.SQ001_SQ002.[i],data$matching3N3.SQ002_SQ002.[i],data$matching3N3.SQ003_SQ002.[i],data$matching3N3.SQ004_SQ002.[i],data$matching3N3.SQ005_SQ002.[i],data$matching3N3.SQ006_SQ002.[i],data$matching3N3.SQ007_SQ002.[i],data$matching3N3.SQ008_SQ002.[i],data$matching3N3.SQ009_SQ002.[i],data$matching3N3.SQ010_SQ002.[i], data$matching3N3.SQ011_SQ002.[i], data$matching3N3.SQ012_SQ002.[i], data$matching3N3.SQ013_SQ002.[i], data$matching3N3.SQ014_SQ002.[i], data$matching3N3.SQ015_SQ002.[i]),
+    cbind(data$matching3N3.SQ001_SQ003.[i],data$matching3N3.SQ002_SQ003.[i],data$matching3N3.SQ003_SQ003.[i],data$matching3N3.SQ004_SQ003.[i],data$matching3N3.SQ005_SQ003.[i],data$matching3N3.SQ006_SQ003.[i],data$matching3N3.SQ007_SQ003.[i],data$matching3N3.SQ008_SQ003.[i],data$matching3N3.SQ009_SQ003.[i],data$matching3N3.SQ010_SQ003.[i], data$matching3N3.SQ011_SQ003.[i], data$matching3N3.SQ012_SQ003.[i], data$matching3N3.SQ013_SQ003.[i], data$matching3N3.SQ014_SQ003.[i], data$matching3N3.SQ015_SQ003.[i]))
+  matching3L[[4]] <- rbind(
+    cbind(data$matching3N4.SQ001_SQ001.[i],data$matching3N4.SQ002_SQ001.[i],data$matching3N4.SQ003_SQ001.[i],data$matching3N4.SQ004_SQ001.[i],data$matching3N4.SQ005_SQ001.[i],data$matching3N4.SQ006_SQ001.[i],data$matching3N4.SQ007_SQ001.[i],data$matching3N4.SQ008_SQ001.[i],data$matching3N4.SQ009_SQ001.[i],data$matching3N4.SQ010_SQ001.[i], data$matching3N4.SQ011_SQ001.[i], data$matching3N4.SQ012_SQ001.[i], data$matching3N4.SQ013_SQ001.[i], data$matching3N4.SQ014_SQ001.[i], data$matching3N4.SQ015_SQ001.[i]),
+    cbind(data$matching3N4.SQ001_SQ002.[i],data$matching3N4.SQ002_SQ002.[i],data$matching3N4.SQ003_SQ002.[i],data$matching3N4.SQ004_SQ002.[i],data$matching3N4.SQ005_SQ002.[i],data$matching3N4.SQ006_SQ002.[i],data$matching3N4.SQ007_SQ002.[i],data$matching3N4.SQ008_SQ002.[i],data$matching3N4.SQ009_SQ002.[i],data$matching3N4.SQ010_SQ002.[i], data$matching3N4.SQ011_SQ002.[i], data$matching3N4.SQ012_SQ002.[i], data$matching3N4.SQ013_SQ002.[i], data$matching3N4.SQ014_SQ002.[i], data$matching3N4.SQ015_SQ002.[i]),
+    cbind(data$matching3N4.SQ001_SQ003.[i],data$matching3N4.SQ002_SQ003.[i],data$matching3N4.SQ003_SQ003.[i],data$matching3N4.SQ004_SQ003.[i],data$matching3N4.SQ005_SQ003.[i],data$matching3N4.SQ006_SQ003.[i],data$matching3N4.SQ007_SQ003.[i],data$matching3N4.SQ008_SQ003.[i],data$matching3N4.SQ009_SQ003.[i],data$matching3N4.SQ010_SQ003.[i], data$matching3N4.SQ011_SQ003.[i], data$matching3N4.SQ012_SQ003.[i], data$matching3N4.SQ013_SQ003.[i], data$matching3N4.SQ014_SQ003.[i], data$matching3N4.SQ015_SQ003.[i]),
+    cbind(data$matching3N4.SQ001_SQ003.[i],data$matching3N4.SQ002_SQ003.[i],data$matching3N4.SQ003_SQ003.[i],data$matching3N4.SQ004_SQ003.[i],data$matching3N4.SQ005_SQ003.[i],data$matching3N4.SQ006_SQ003.[i],data$matching3N4.SQ007_SQ003.[i],data$matching3N4.SQ008_SQ003.[i],data$matching3N4.SQ009_SQ003.[i],data$matching3N4.SQ010_SQ003.[i], data$matching3N4.SQ011_SQ003.[i], data$matching3N4.SQ012_SQ003.[i], data$matching3N4.SQ013_SQ003.[i], data$matching3N4.SQ014_SQ003.[i], data$matching3N4.SQ015_SQ003.[i]),
+    cbind(data$matching3N4.SQ001_SQ004.[i],data$matching3N4.SQ002_SQ004.[i],data$matching3N4.SQ003_SQ004.[i],data$matching3N4.SQ004_SQ004.[i],data$matching3N4.SQ005_SQ004.[i],data$matching3N4.SQ006_SQ004.[i],data$matching3N4.SQ007_SQ004.[i],data$matching3N4.SQ008_SQ004.[i],data$matching3N4.SQ009_SQ004.[i],data$matching3N4.SQ010_SQ004.[i], data$matching3N4.SQ011_SQ004.[i], data$matching3N4.SQ012_SQ004.[i], data$matching3N4.SQ013_SQ004.[i], data$matching3N4.SQ014_SQ004.[i], data$matching3N4.SQ015_SQ004.[i]))
+  matching3L[[5]] <- rbind(
+    cbind(data$matching3N5.SQ001_SQ001.[i],data$matching3N5.SQ002_SQ001.[i],data$matching3N5.SQ003_SQ001.[i],data$matching3N5.SQ004_SQ001.[i],data$matching3N5.SQ005_SQ001.[i],data$matching3N5.SQ006_SQ001.[i],data$matching3N5.SQ007_SQ001.[i],data$matching3N5.SQ008_SQ001.[i],data$matching3N5.SQ009_SQ001.[i],data$matching3N5.SQ010_SQ001.[i], data$matching3N5.SQ011_SQ001.[i], data$matching3N5.SQ012_SQ001.[i], data$matching3N5.SQ013_SQ001.[i], data$matching3N5.SQ014_SQ001.[i], data$matching3N5.SQ015_SQ001.[i]),
+    cbind(data$matching3N5.SQ001_SQ002.[i],data$matching3N5.SQ002_SQ002.[i],data$matching3N5.SQ003_SQ002.[i],data$matching3N5.SQ004_SQ002.[i],data$matching3N5.SQ005_SQ002.[i],data$matching3N5.SQ006_SQ002.[i],data$matching3N5.SQ007_SQ002.[i],data$matching3N5.SQ008_SQ002.[i],data$matching3N5.SQ009_SQ002.[i],data$matching3N5.SQ010_SQ002.[i], data$matching3N5.SQ011_SQ002.[i], data$matching3N5.SQ012_SQ002.[i], data$matching3N5.SQ013_SQ002.[i], data$matching3N5.SQ014_SQ002.[i], data$matching3N5.SQ015_SQ002.[i]),
+    cbind(data$matching3N5.SQ001_SQ003.[i],data$matching3N5.SQ002_SQ003.[i],data$matching3N5.SQ003_SQ003.[i],data$matching3N5.SQ004_SQ003.[i],data$matching3N5.SQ005_SQ003.[i],data$matching3N5.SQ006_SQ003.[i],data$matching3N5.SQ007_SQ003.[i],data$matching3N5.SQ008_SQ003.[i],data$matching3N5.SQ009_SQ003.[i],data$matching3N5.SQ010_SQ003.[i], data$matching3N5.SQ011_SQ003.[i], data$matching3N5.SQ012_SQ003.[i], data$matching3N5.SQ013_SQ003.[i], data$matching3N5.SQ014_SQ003.[i], data$matching3N5.SQ015_SQ003.[i]),
+    cbind(data$matching3N5.SQ001_SQ003.[i],data$matching3N5.SQ002_SQ003.[i],data$matching3N5.SQ003_SQ003.[i],data$matching3N5.SQ004_SQ003.[i],data$matching3N5.SQ005_SQ003.[i],data$matching3N5.SQ006_SQ003.[i],data$matching3N5.SQ007_SQ003.[i],data$matching3N5.SQ008_SQ003.[i],data$matching3N5.SQ009_SQ003.[i],data$matching3N5.SQ010_SQ003.[i], data$matching3N5.SQ011_SQ003.[i], data$matching3N5.SQ012_SQ003.[i], data$matching3N5.SQ013_SQ003.[i], data$matching3N5.SQ014_SQ003.[i], data$matching3N5.SQ015_SQ003.[i]),
+    cbind(data$matching3N5.SQ001_SQ005.[i],data$matching3N5.SQ002_SQ005.[i],data$matching3N5.SQ003_SQ005.[i],data$matching3N5.SQ004_SQ005.[i],data$matching3N5.SQ005_SQ005.[i],data$matching3N5.SQ006_SQ005.[i],data$matching3N5.SQ007_SQ005.[i],data$matching3N5.SQ008_SQ005.[i],data$matching3N5.SQ009_SQ005.[i],data$matching3N5.SQ010_SQ005.[i], data$matching3N5.SQ011_SQ005.[i], data$matching3N5.SQ012_SQ005.[i], data$matching3N5.SQ013_SQ005.[i], data$matching3N5.SQ014_SQ005.[i], data$matching3N5.SQ015_SQ005.[i]))
+  matchingList3[[i]] <- matching3L
+}
+
+for (i in 1:length(matchingList3)) {    # for ego i
+  mL <- matchingList3[[i]]              # get the matching list 2
+  ns <- ns4[[i]]                        # get the size of egonet4
+  if(ns>0) {                            # if ns=0, no matching was done!
+    mm <- as.matrix(mL[[ns]])           # and the corresponding matrix
+    matched <- which(mm==1, arr.ind=T)  # retrieve array indices
+    net <- net4[i,]
+    if(length(matched)>0) {             # if matching was performed!
+      alterL[[i]]$name4[matched[,2]] <- net[matched[,1]]
+    }
+  }
+}
+
+# i use the name interpreter data to add alter characteristics
+# i make a data-frame of alters' gender
+# in the survey, in name-interpreter questions, only unique (i.e., non-matched)
+# alters were listed...
+# thus, alter ids without a gender assigned to them are non-uniques, and can
+# later be filtered out.
+
+df_gender <- data.frame(
+  p1 = data$gender.SQ001.,
+  p2 = data$gender.SQ002.,
+  p3 = data$gender.SQ003.,
+  p4 = data$gender.SQ004.,
+  p5 = data$gender.SQ005.,
+  p6 = data$gender.SQ006.,
+  p7 = data$gender.SQ007.,
+  p8 = data$gender.SQ008.,
+  p9 = data$gender.SQ009.,
+  p10= data$gender.SQ010.,
+  p11= data$gender.SQ011.,
+  p12= data$gender.SQ012.,
+  p13= data$gender.SQ013.,
+  p14= data$gender.SQ014.,
+  p15= data$gender.SQ015.,
+  p16= data$gender.SQ016.,
+  p17= data$gender.SQ017.,
+  p18= data$gender.SQ018.,
+  p19= data$gender.SQ019.,
+  p20= data$gender.SQ020.)
+
+for (i in 1:length(alterL)) {
+  alterL[[i]]$alter_gender <- 
+    ifelse(unlist(df_gender[i,], use.names=F)=="Man", 0,  # male = ref.
+           ifelse(unlist(df_gender[i,], use.names=F)=="Vrouw", 1,
+                  ifelse(unlist(df_gender[i,], use.names=F)=="Anders", 2, "")))
+}
+
+# same for age...
+df_age <- data.frame(
+  p1 = data$age.SQ001.,
+  p2 = data$age.SQ002.,
+  p3 = data$age.SQ003.,
+  p4 = data$age.SQ004.,
+  p5 = data$age.SQ005.,
+  p6 = data$age.SQ006.,
+  p7 = data$age.SQ007.,
+  p8 = data$age.SQ008.,
+  p9 = data$age.SQ009.,
+  p10= data$age.SQ010.,
+  p11= data$age.SQ011.,
+  p12= data$age.SQ012.,
+  p13= data$age.SQ013.,
+  p14= data$age.SQ014.,
+  p15= data$age.SQ015.,
+  p16= data$age.SQ016.,
+  p17= data$age.SQ017.,
+  p18= data$age.SQ018.,
+  p19= data$age.SQ019.,
+  p20= data$age.SQ020.)
+
+for (i in 1:length(alterL)) {
+  alterL[[i]]$alter_age <- 
+    ifelse(unlist(df_age[i,], use.names=F)=="Jonger dan 18 jaar", 16, #???
+           ifelse(unlist(df_age[i,], use.names=F)=="18 tot 21 jaar", 20,
+                  ifelse(unlist(df_age[i,], use.names=F)=="22 tot 25 jaar", 23,
+                         ifelse(unlist(df_age[i,], use.names=F)=="26 tot 30 jaar", 28,
+                                ifelse(unlist(df_age[i,], use.names=F)=="31 tot 40 jaar", 35,
+                                       ifelse(unlist(df_age[i,], use.names=F)=="Ouder dan 40 jaar", 45, #???
+                                              ifelse(unlist(df_age[i,], use.names=F)=="Weet ik niet", NA, # i don't know = missing
+                                                     unlist(df_age[i,], use.names=F))))))))}
+
+# education... was asked in w2. for all alters (thus in w2, and unique names of w1)
+# but w1 names were only listed if they did not correspond to w2 alters...
+# ...
+
+# political placement of alters on left-right spectrum (as perceived by ego)
+df_pol <- data.frame(
+  p1 = data$P5.SQ001.,
+  p2 = data$P5.SQ002.,
+  p3 = data$P5.SQ003.,
+  p4 = data$P5.SQ004.,
+  p5 = data$P5.SQ005.,
+  p6 = data$P5.SQ006.,
+  p7 = data$P5.SQ007.,
+  p8 = data$P5.SQ008.,
+  p9 = data$P5.SQ009.,
+  p10= data$P5.SQ010.,
+  p11= data$P5.SQ011.,
+  p12= data$P5.SQ012.,
+  p13= data$P5.SQ013.,
+  p14= data$P5.SQ014.,
+  p15= data$P5.SQ015.,
+  p16= data$P5.SQ016.,
+  p17= data$P5.SQ017.,
+  p18= data$P5.SQ018.,
+  p19= data$P5.SQ019.,
+  p20= data$P5.SQ020.)
+
+
+for (i in 1:length(alterL)) {
+  alter_placement <- unlist(df_pol[i,],use.names=F)
+  # extract numbers from strings
+  alter_placement <- stringr::str_extract(alter_placement,  pattern = "\\(?[0-9,.]+\\)?")
+  alterL[[i]]$alter_pol <- alter_placement
+}
+
+# before we can construct similarity indices, we must add ego-attributes
+for (i in 1:length(alterL)) {
+  #  gender
+  alterL[[i]]$ego_gender <- ifelse(data$A1[i] == "Man", 0,
+                                   ifelse(data$A1[i] == "Vrouw", 1,
+                                          ifelse(data$A1[i] == "Overige", 2,
+                                                 NA)))
+  # education 
+  # @RF: these score should correspond to scores given to alter educ...
+  alterL[[i]]$ego_educ <- ifelse(data$T1[i] == "aan de Hogeschool van Arnhem en Nijmegen (HAN)", "hbo", "universiteit" )
+  
+  # age
+  # calculated as the difference between submission date and birthdate
+  # in years.
+  birth_date <- as.Date(data$A2)
+  x_date <- as.Date(data$submitdate)
+  require(lubridate)
+  alterL[[i]]$ego_age <- trunc((birth_date[i] %--% x_date[i]) / years(1))
+  
+  # political orientation (left-right)
+  ego_placement <- stringr::str_extract(data$P1.SQ001.,  pattern = "\\(?[0-9,.]+\\)?")
+  alterL[[i]]$ego_pol <- as.numeric(ego_placement[i])
+}
+
+# i filter out the unique, non-duplicate alters;
+# by excluding alters with empty strings for gender attribute
+for ( i in 1:length(alterL)) {
+  alterL[[i]] <- alterL[[i]][which(alterL[[i]]$alter_gender!=""),]
+  # and replace the alter id: 1 : no. unique alters
+  alterL[[i]]$alterid <- 1:nrow(alterL[[i]])
+}
+
+# dyadic similarity:
+for (i in 1:length(alterL))  { # for ego i
+  # get attributes of ego
+  agei <- alterL[[i]]$ego_age[1]
+  genderi <- alterL[[i]]$ego_gender[1]
+  #educi <- alterL[[i]]$ego_educ[1]
+  poli <- alterL[[i]]$ego_pol[1]
+  
+  for (j in 1:max(alterL[[i]]$alterid)) { # for alter j
+    # calculate "same gender" (0/1)
+    genderj <- as.numeric(alterL[[i]]$alter_gender[j]) # get alter j gender
+    same <- ifelse(genderi==genderj, 1, 0)
+    alterL[[i]]$same_gender[which(alterL[[i]]$alterid==j)] <- same
+    
+    # calculate similarity for age and political orientation
+    # @RF.. to-do: education
+    
+    # @RF... i may want to construct similarity indices for continues variables
+    # sim^z_ij = 1 - |z_i - z_j| / rang_z
+    # this is beneficial, as index values range between 0 and 1...
+    # here, some conditions are relevant; as similarity would be -INF is rang_z=0;
+    # and incalculable if z_j = NA (unknown) [and/or z_i = NA (i.e., for political orientation)]
+    
+    # for now... i calculate similarity/homophily as the absolute difference between
+    # alter and ego value (cf. Marin & Hampton 2019); "easy method"
+    agej <- as.numeric(alterL[[i]]$alter_age[j]) # get alter j age
+    difage <- abs(agei - agej) # difference score
+    # so higher values represent *less* similarity
+    if( !is.na (agej) ) { # similarity only calculable if z_j is known!
+      alterL[[i]]$dif_age[which(alterL[[i]]$alterid==j)] <- difage
+    } else { alterL[[i]]$dif_age[which(alterL[[i]]$alterid==j)] <- NA}
+  }
+  
+  # dyadic similarity:
+  for (i in 1:length(alterL))  { # for ego i
+    # get attributes of ego
+    agei <- alterL[[i]]$ego_age[1]
+    genderi <- alterL[[i]]$ego_gender[1]
+    #educi <- alterL[[i]]$ego_educ[1]
+    poli <- alterL[[i]]$ego_pol[1]
+    
+    for (j in 1:max(alterL[[i]]$alterid)) { # for alter j
+      # calculate "same gender" (0/1)
+      genderj <- as.numeric(alterL[[i]]$alter_gender[j]) # get alter j gender
+      same <- ifelse(genderi==genderj, 1, 0)
+      alterL[[i]]$same_gender[which(alterL[[i]]$alterid==j)] <- same
+      
+      # calculate similarity for age and political orientation
+      # @RF.. to-do: education
+      
+      # @RF... i may want to construct similarity indices for continues variables
+      # sim^z_ij = 1 - |z_i - z_j| / rang_z
+      # probably for political orientation, as the range (scale) is known...
+      # this is beneficial, as index values range between 0 and 1...
+      # here, some conditions are relevant; as similarity would be -INF is rang_z=0;
+      # and incalculable if z_j and/or z_i = NA (unknown)
+      
+      # for now... i calculate similarity/homophily as the absolute difference between
+      # alter and ego value (cf. Marin & Hampton 2019);
+      agej <- as.numeric(alterL[[i]]$alter_age[j]) # get alter j attributes
+      polj <- as.numeric(alterL[[i]]$alter_pol[j])
+      
+      difage <- abs(agei - agej) # difference scores
+      difpol <- abs(poli - polj)
+      # higher values represent less similarity
+      
+      if( !is.na (agej) ) { # age similarity only calculable if z_j is known!
+        alterL[[i]]$dif_age[which(alterL[[i]]$alterid==j)] <- difage
+      } else { alterL[[i]]$dif_age[which(alterL[[i]]$alterid==j)] <- NA}
+      
+      if( !is.na (polj) & !is.na(poli) ) { # pol. similarity only if zi AND zj are known
+        alterL[[i]]$dif_pol[which(alterL[[i]]$alterid==j)] <- difpol
+      } else { alterL[[i]]$dif_pol[which(alterL[[i]]$alterid==j)] <- NA}
+    }
+    
+  }
+}
+
+# based on list of data-frames for each ego, i make a long data-frame with 
+# alters nested in egos
+# nrow per ego depends on netsize
+ns <- vector()
+for (i in 1:length(alterL)){
+  ns[i] <- nrow(alterL[[i]])
+}
+
+df <- data.frame(
+  ego = rep(1:length(alterL),ns)
+)
+
+# add ego-level variables
+df$ego_gender <- NA
+df$ego_age <- NA
+df$ego_educ <- NA
+df$ego_pol <- NA
+
+for (i in unique(df$ego)) { # for ego
+  df$ego_gender[which(df$ego==i)] <- alterL[[i]]$ego_gender[1]
+  df$ego_age[which(df$ego==i)] <- alterL[[i]]$ego_age[1]
+  df$ego_educ[which(df$ego==i)] <- alterL[[i]]$ego_educ[1]
+  df$ego_pol[which(df$ego==i)] <- alterL[[i]]$ego_pol[1]
+  #@RF: perhaps add missing dummy for political orienation... interesting category?
+}
+
+# other ego-variables
+# merge data waves
+data$id <- 1:nrow(data)
+d <- merge(data, data2, by="email")
+# sort
+d <- data.frame(d[order(d$id.x, decreasing = F), ])
+
+df$housing <- NA # current living situation
+# @RF. ideally, i would calculate the distance in km between the two residencies.
+
+for (i in unique(df$ego)) {
+  df$housing[which(df$ego==i)] <- d$A4.x[i] # w1, half year prior to transition
+  
+  # if respondent does not still live here at w1, get current living situation
+  df$housing[which(df$ego==i)] <- ifelse(d$A6[i] == "Nee", d$A7[i], df$housing[which(df$ego==i)]) 
+  
+  # if respondent has moved since then, ...
+  df$housing[which(df$ego==i)] <- ifelse(d$A4.y[i] == "Ja" | d$A4b[i] == "Ja" | d$A4c[i] == "Ja", d$A4d[i], df$housing[which(df$ego==i)] )
+}
+
+# make housing categories...
+df$alone <- ifelse(df$housing=="alleen",1,0)
+df$parents <- ifelse(df$housing=="inwonend bij je ouder(s)/verzorger(s)",1,0)
+df$other <- ifelse(df$housing!="alleen" | df$housing!="inwonend bij je ouder(s)/verzorger(s)",1,0)
+library(dplyr)
+df<-df %>% select(-housing) # remove character variable.
+
+# add a dynamic attribute indicating residential move over the academic year (yes/no)
+df$housing_change <- NA
+for ( i in unique(df$ego)) {
+  df$housing_change[which(df$ego==i)] <- ifelse(d$A6[i] == "Nee" | d$A4.y[i] == "Ja" | d$A4b[i] == "Ja" | d$A4c[i] == "Ja", 1, 0)
+}
+
+# ideally, also a variable indicating the distance of the move (we have 4-digit zip code info on residence pre- and post-transition)
+
+# ego main occupation before transitioning to uni.
+df$sec_educ <- NA
+df$tert_educ <- NA
+df$work <- NA
+df$gapyr <- NA
+df$other <- NA
+
+for ( i in unique(df$ego)) {
+  df$sec_educ[which(df$ego==i)] <- ifelse(data$E1[i]=="Ik zat op de middelbare school",1,0)
+  df$tert_educ[which(df$ego==i)] <- ifelse(data$E1[i]=="Ik deed een MBO-, HBO- of WO-opleiding",1,0)
+  df$work[which(df$ego==i)] <-  ifelse(data$E1[i]=="Ik werkte",1,0)
+  df$gapyr[which(df$ego==i)] <- ifelse(data$E1[i]=="Ik had een tussenjaar",1,0)
+  df$other[which(df$ego==i)] <- ifelse(data$E1[i]=="Overige",1,0)
+}
+
+# being / becoming member of a formal organization (e.g., sports club, political party)
+# organizations ego is member of...
+# pre-transition
+f1 <- cbind(data$F1.SQ001.,data$F1.SQ002.,data$F1.SQ003.,data$F1.SQ004.,data$F1.SQ005.)
+# currently (w1)
+f2 <- cbind(data$F2.SQ001.,data$F2.SQ002.,data$F2.SQ003.,data$F2.SQ004.,data$F2.SQ005.)
+
+df$organization <- NA  # being member
+df$joined_org <- NA # became member after transition.
+
+for (i in unique(df$ego)) {
+  # if ego was member of at least one type of organization...
+  # give score 1:
+  df$organization[which(df$ego==i)] <- ifelse("Ja" %in% f2[i,], 1, 0)
+  
+  # if ego joined (at least) one organization...
+  # i.e., if ego was not member of the particular organization before tranistioning
+  # to uni, but he/she was after transitioning...
+  # give score 1 on the dynamic attribute
+  
+  ind <- which(f2[i,]=="Ja") # get organizations ego is member of...
+  # find out if ego was already member or not... 
+  df$joined_org[which(df$ego==i)] <- ifelse("Nee" %in% f1[i,ind],1,0)
+}
+
+# other organizations ego may have joined
+df$studiever <- NA
+df$studentver <- NA
+for (i in unique(df$ego)) {
+  df$studiever[which(df$ego==i)] <- ifelse(data$E4[i]=="Ja",1,0)
+  df$studentver[which(df$ego==i)] <- ifelse(data$E5[i]=="Ja",1,0)
+}
+
+# romantic relationship
+df$romantic <- NA
+for (i in unique(df$ego)) {
+  df$romantic[which(df$ego==i)] <- ifelse(data$R3[i] == "Ja", 1,0)
+}
+
+#loneliness:
+#https://www.cbs.nl/nl-nl/maatwerk/2020/52/eenzaamheid
+# 1) "Er zijn genoeg mensen op wie ik in geval van narigheid kan terugvallen" (social loneliness)
+# 2) "Ik mis mensen om me heen" (emotional loneliness)
+l <- cbind(d$stellingen.SQ001., d$stellingen.SQ002.)
+l <- ifelse(l=="Hele-maal oneens", 1,
+            ifelse(l=="Mee oneens", 2,
+                   # do not know = neutral... this category was sparsely populated 
+                   ifelse(l=="Neutraal" | l=="Ik weet het niet", 3, 
+                          ifelse(l=="Mee eens", 4,
+                                 ifelse(l=="Hele-maal eens", 5, l)))))
+# turn the first indicator, so that higher scores indicate "more" loneliness.
+l[,1] <- 6-as.numeric(l[,1])
+
+#extraversion
+# 1) "Ik ben communicatief, een gezelschapsmens"
+# 2) "Ik ben soms verlegen, introvert"
+e <- cbind(d$stellingen.SQ003., d$stellingen.SQ006.)
+e <- ifelse(e=="Hele-maal oneens", 1,
+            ifelse(e=="Mee oneens", 2,
+                   ifelse(e=="Neutraal" | e=="Ik weet het niet", 3, 
+                          ifelse(e=="Mee eens", 4,
+                                 ifelse(e=="Hele-maal eens", 5, e)))))
+# turn the second indicator
+e[,2] <- 6-as.numeric(e[,2])
+
+# calculate averages.
+df$loneliness <- NA
+df$extraversion <- NA
+
+for (i in unique(df$ego)) {
+  l_scores <- as.numeric(l[i,])
+  e_scores <- as.numeric(e[i,])
+  df$loneliness[which(df$ego==i)] <- mean(l_scores)
+  df$extraversion[which(df$ego==i)] <- mean(e_scores)
+}
+
+# study load may hinder social interaction...
+# unfortunately, this is not a dynamic variable; ...
+# "Ik heb het gevoel dat ik veel dingen mis doordat ik veel tijd kwijt ben aan mijn studie"
+df$study_load <- NA
+for (i in unique(df$ego)) {
+  df$study_load[which(df$ego==i)] <- d$stellingen.SQ004.[i]
+}
+# recode
+df$study_load <- ifelse(df$study_load=="Hele-maal oneens", 1,
+                        ifelse(df$study_load=="Mee oneens", 2,
+                               ifelse(df$study_load=="Neutraal" | df$study_load=="Ik weet het niet", 3, 
+                                      ifelse(df$study_load=="Mee eens", 4,
+                                             ifelse(df$study_load=="Hele-maal eens", 5, df$study_load)))))
+
+# financial restrictions for social interaction
+# "Maak je het mee dat je activiteiten of uitstapjes met vrienden moet missen omdat je je deze niet financieel kunt veroorloven?"
+df$fin_restr <- NA
+for (i in unique(df$ego)) {
+  df$fin_restr[which(df$ego==i)] <- d$G01Q111[i]
+}
+df$fin_restr <- ifelse(df$fin_restr=="Nooit",0,
+                       ifelse(df$fin_restr=="Soms",1,
+                              ifelse(df$fin_restr=="Vaak",2,
+                                     ifelse(df$fin_restr=="Altijd",3, NA))))
+# 0. never; 1. sometimes; 2. often; 3. always
+
+# covid! worries/anxiety about covid may reduce social interaction;
+# but also the feelings of people in your social circle of course.
+# @RF: i include worries/anxiety about the DELTA-variant (i.e., during summer holidays)
+# this may affect tie maintenance during the transition to uni...
+df$ego_covid_anx <- NA
+df$alters_covid_anx <- NA
+for (i in unique(df$ego)) {
+  df$ego_covid_anx[which(df$ego==i)] <- d$covid.SQ001.[i]
+  df$alters_covid_anx[which(df$ego==i)] <- d$covid.SQ002.[i]
+}
+# recode
+df$alters_covid_anx <- ifelse(df$alters_covid_anx=="Hele-maal oneens", 1,
+                              ifelse(df$alters_covid_anx=="Mee oneens", 2,
+                                     ifelse(df$alters_covid_anx=="Neu-traal" | df$alters_covid_anx=="Ik weet het niet" , 3,
+                                            ifelse(df$alters_covid_anx=="Mee eens", 4,  
+                                                   ifelse(df$alters_covid_anx=="Hele-maal eens", 5, df$alters_covid_anx)))))
+df$ego_covid_anx <- ifelse(df$ego_covid_anx=="Hele-maal oneens", 1,
+                           ifelse(df$ego_covid_anx=="Mee oneens", 2,
+                                  ifelse(df$ego_covid_anx=="Neu-traal" | df$ego_covid_anx=="Ik weet het niet" , 3,
+                                         ifelse(df$ego_covid_anx=="Mee eens", 4,  
+                                                ifelse(df$ego_covid_anx=="Hele-maal eens", 5, df$ego_covid_anx)))))
+
+####
+# @RF. add network variables
+# size (no. of unique alters); density (unfortunately, i only know this per ego-net)
+df$netsize <- NA
+for (i in unique(df$ego)) {
+  df$netsize[which(df$ego==i)] <- nrow(alterL[[i]])
+}
+df$density <- NA
+##...
+
+#######
+# to the alter level!
+# make alter ids per ego
+df$alter <- NA
+for (i in unique(df$ego)) {
+  df$alter[which(df$ego==i)] <- 1:nrow(df[which(df$ego==i),])
+}
+
+# binary attributes, indicating whether alters appeared in each of the egonets
+df$cdn <- NA
+df$study <- NA
+df$bff <- NA
+df$csn <- NA
+
+for (i in unique(df$ego)) {  
+  for (j in 1:nrow(df[which(df$ego==i),])) { # for alters nested in ego
+    # find out if names denoting alter j appear in the 4 egonets
+    alter <- unlist(alterL[[i]][j,6:9], use.names = F) # get names alter j
+    alter <- alter[!is.na(alter)] # exclude NAs
+    cdn <- alter %in% net1[i,]
+    study <- alter %in% net2[i,]
+    bff <- alter %in% net3[i,]
+    csn <- alter %in% net4[i,]
+    # and if so, give alter j score 1 on indicators; 0 otherwise
+    df$cdn[which(df$ego==i & df$alter==j)] <- ifelse("TRUE" %in% cdn, 1, 0)
+    df$study[which(df$ego==i & df$alter==j)] <- ifelse("TRUE" %in% study, 1, 0)
+    df$bff[which(df$ego==i & df$alter==j)] <- ifelse("TRUE" %in% bff, 1, 0)
+    df$csn[which(df$ego==i & df$alter==j)] <- ifelse("TRUE" %in% csn, 1, 0)
+  }
+}
+
+# multiplexity as an alter (tie) attribute: 
+# the the number of networks j appears in (the number of ties i and j share)
+df$multiplex <- rowSums(df[,c(27:30)])
+
+# embeddedness
+df$embedded <- NA
+
+# add alter level attributes
+df$alter_gender <- NA
+df$alter_age <- NA
+df$alter_educ <- NA
+df$alter_pol <- NA
+#...
+
+for (i in unique(df$ego)) { # for ego
+  for (j in unique(df$alter[which(df$ego==i)])) { # for alter
+    df$alter_gender[which(df$ego==i & df$alter==j)] <- alterL[[i]]$alter_gender[j]
+    df$alter_age[which(df$ego==i & df$alter==j)] <- alterL[[i]]$alter_age[j]
+    df$alter_educ[which(df$ego==i & df$alter==j)] <- alterL[[i]]$alter_educ[j]
+    df$alter_pol[which(df$ego==i & df$alter==j)] <- alterL[[i]]$alter_pol[j]
+  }
+}
+
+# dyadic level
+df$same_gender = NA
+df$sim_educ = NA
+df$dif_age = NA
+df$dif_pol = NA
+
+for (i in unique(df$ego)) { # for ego
+  for (j in unique(df$alter[which(df$ego==i)])) { # for alter
+    df$same_gender[which(df$ego==i & df$alter==j)] <- alterL[[i]]$same_gender[j]
+    df$sim_educ[which(df$ego==i & df$alter==j)] <- alterL[[i]]$sim_educ[j]
+    df$dif_age[which(df$ego==i & df$alter==j)] <- alterL[[i]]$dif_age[j]
+    df$dif_pol[which(df$ego==i & df$alter==j)] <- alterL[[i]]$dif_pol[j]    
+  }
+}
+
+# i have to find out whether alters were maintained in w2
+df$survive <- NA
+# In wave 2, another matching procedure was used;
+# in rows, alters named in w2 are listed; columns denote (unique) alters of w1,
+# so the same one as our data-frame.
+# again, i made multiple matrices, conditional on the no. of unique alters of w1
+# (15, to be precise)
+# if, in one of these matrices, column j was marked as corresponding to a
+# named alter in w2, then alter j did, indeed, survive...
+
+# subset w1-w2 matching matrices; and email
+w2 <- data2[,c(637:936, 1427)]
+# subset data id and email
+d <- data[,c(1,ncol(data))]
+# merge the data-set with the w1-w2 matching matrices
+d <- merge(w2, d, by="email")
+# sort by the id variable, so that the ordening of responses is the same as our
+# long dataframe
+d <- data.frame(d[order(d$id, decreasing = F), ])
+# and reorder rownames
+rownames(d) <- 1:length(rownames(d))
+
+
+for (i in 1:nrow(d)) {  # for ego i
+  
+  matchingL <- list()  # make a list of matching matrices
+  {
+    matchingL[[1]] <- d[i,2:21]
+    matchingL[[2]] <- d[i,22:41]
+    matchingL[[3]] <- d[i,42:61]
+    matchingL[[4]] <- d[i,62:81]
+    matchingL[[5]] <- d[i,82:101]
+    matchingL[[6]] <- d[i,102:121]
+    matchingL[[7]] <- d[i,122:141]
+    matchingL[[8]] <- d[i,142:161]
+    matchingL[[9]] <- d[i,162:181]
+    matchingL[[10]] <- d[i,182:201]
+    matchingL[[11]] <- d[i,202:221]
+    matchingL[[12]] <- d[i,222:241]
+    matchingL[[13]] <- d[i,242:261]
+    matchingL[[14]] <- d[i,262:281]
+    matchingL[[15]] <- d[i,282:301]
+  }
+  # get netsize of ego i
+  ns <- max(df$alter[which(df$ego==i)])
+  # get the corresponding matrix
+  mm <- matchingL[[ns]]
+  # unlist the answers given
+  ans <- unlist(mm, use.names = F)
+  # use 'stringr' to extract numbers in these answers,
+  # they refer to the id of "survived" alters
+  id <- unlist(stringr::str_extract_all(ans,"\\(?[0-9,.]+\\)?"))
+  id <- id[!is.na(id)] # exclude NA
+  # if alter id of ego i corresponds to this id, they did indeed survive:
+  
+  df$survive[which(df$ego==i)] <- ifelse(df$alter[which(df$ego==i)] %in% id, 1, 0)
+  
+}
+
+# if alter was re-named, also add in which egonet they (re-)appeared.
+# this allows me to not only study predictors of tie maintenance 
+# regardless of the net alter reappears in (cf. Tulin et al 2021), 
+# so for instance a study partner
+# reappearing as a sports partner (but not as a study partner);
+# but of reappearing in the same net, 
+# as opposed to a different net or no net at all.
+# and with predicor variables indicating whether alter was part of each of the nets
+# this allows me to make inference about within-egonet tie stability for each of the nets
+# (e.g., staying a friend only vs. staying a core discussant only)
+
+# binary variables indicating whether alters reappeared in each of the nets:
+df$cdn2 <- NA
+df$study2 <- NA
+df$bff2 <- NA
+df$csn2 <- NA
+
+# i use the matching matrices used in w2;
+# where columns refer to unique w1 alters (those of our constructed dataframe)
+# and rows referring to unique w2 alters
+# so, if w1-alter/column j is matched to w2-alter/row i, then w1-alter did survive
+# (but we already knew that); but more importantly, j was the i^th alter mentioned
+# and this allows me to infer in what network j (re-)appeared
+# since cdn = i 1-5; study = i 6-10; bff = i 11-15; csn = i 16-20.
+
+# however, since the rows only include non-duplicate w2-alters;
+# if alter j at t1 was named more than once at t2, i only know the first
+# egonet in which j was named...
+# thus, before i proceed, i use the matching matrices that allowed ego to match
+# alters from different egonets.
+# to make alter ids for w2 alters; and figure out to which egonets they belonged
+# (that is, if more than one)
+
+# get w2 data and sort it, so that it has the same the same order as our constructed df
+t <- merge(data, data2, by="email")
+t <- data.frame(t[order(t$id.x, decreasing = F), ])
+
+# i make a dataframe of w2-alters, with potential duplicates...
+df_names <- data.frame(
+  p1 = t$egonet1.SQ001..y,
+  p2 = t$egonet1.SQ002..y,
+  p3 = t$egonet1.SQ003..y,
+  p4 = t$egonet1.SQ004..y,
+  p5 = t$egonet1.SQ005..y,
+  p6 = t$egonet2.SQ001..y,
+  p7 = t$egonet2.SQ002..y,
+  p8 = t$egonet2.SQ003..y,
+  p9 = t$egonet2.SQ004..y,
+  p10= t$egonet2.SQ005..y,
+  p11= t$egonet3.SQ001..y,
+  p12= t$egonet3.SQ002..y,
+  p13= t$egonet3.SQ003..y,
+  p14= t$egonet3.SQ004..y,
+  p15= t$egonet3.SQ005..y,
+  p16= t$egonet4.SQ001..y,
+  p17= t$egonet4.SQ002..y,
+  p18= t$egonet4.SQ003..y,
+  p19= t$egonet4.SQ004..y,
+  p20= t$egonet4.SQ005..y)
+
+# @RF: filter out egos that did not report alters at w2????...
+# i think not...
+
+# list of dataframes per ego with rows reflecting alters
+# and columns indicating the name(s) of the particular alters
+
+alterL <- list()
+# loop over all egos
+for ( i in 1:nrow(df_names)) {
+  alterL[[i]] <- data.frame(
+    alterid = 1:20,
+    name1 = NA,
+    name2 = NA,
+    name3 = NA,
+    name4 = NA )
+}
+
+# fill the names based on the names data-frame
+for ( i in 1:length(alterL)) {
+  alterL[[i]]$name1 <- unlist(df_names[i, ], use.names=F)
+}
+
+# replace empty strings with <NA>
+for (i in 1:length(alterL)) {
+  alterL[[i]]$name1 <- ifelse(alterL[[i]]$name1=="", NA, alterL[[i]]$name1)
+}
+
+# calculate netsize for each net to get the correct matching matrix
+{
+  net1 <- cbind(t$egonet1.SQ001..y,t$egonet1.SQ002..y, t$egonet1.SQ003..y,t$egonet1.SQ004..y, t$egonet1.SQ005..y)
+  net1 <- ifelse(net1=="", NA, net1)
+  ns1 <- vector()
+  for (i in 1:nrow(net1)) {
+    ns1[i] <- length(net1[i,][which(!is.na(net1[i,]))])
+  }
+  net2 <- cbind(t$egonet2.SQ001..y,t$egonet2.SQ002..y, t$egonet2.SQ003..y,t$egonet2.SQ004..y, t$egonet2.SQ005..y)
+  net2 <- ifelse(net2=="", NA, net2)
+  ns2 <- vector()
+  for (i in 1:nrow(net2)) {
+    ns2[i] <- length(net2[i,][which(!is.na(net2[i,]))])
+  }
+  net3 <- cbind(t$egonet3.SQ001..y,t$egonet3.SQ002..y, t$egonet3.SQ003..y,t$egonet3.SQ004..y, t$egonet3.SQ005..y)
+  net3 <- ifelse(net3=="", NA, net3)
+  ns3 <- vector()
+  for (i in 1:nrow(net3)) {
+    ns3[i] <- length(net3[i,][which(!is.na(net3[i,]))])
+  }
+  net4 <- cbind(t$egonet4.SQ001..y,t$egonet4.SQ002..y, t$egonet4.SQ003..y,t$egonet4.SQ004..y, t$egonet4.SQ005..y)
+  net4 <- ifelse(net4=="", NA, net4)
+  ns4 <- vector()
+  for (i in 1:nrow(net4)) {
+    ns4[i] <- length(net4[i,][which(!is.na(net4[i,]))])
+  }
+}
+
+# construct the matching matrices list for egonet1-2
+matchingList <- list()
+for (i in 1:length(alterL)) {
+  matchingL <- list()
+  matchingL[[1]] <- cbind(t$matching1N1.SQ001_SQ001..y[i],t$matching1N1.SQ002_SQ001..y[i],t$matching1N1.SQ003_SQ001..y[i],t$matching1N1.SQ004_SQ001..y[i],t$matching1N1.SQ005_SQ001..y[i])
+  matchingL[[2]]<- rbind(
+    cbind(t$matching1N2.SQ001_SQ001..y[i], t$matching1N2.SQ002_SQ001..y[i], t$matching1N2.SQ003_SQ001..y[i], t$matching1N2.SQ004_SQ001..y[i], t$matching1N2.SQ005_SQ001..y[i]),
+    cbind(t$matching1N2.SQ001_SQ002..y[i], t$matching1N2.SQ002_SQ002..y[i], t$matching1N2.SQ003_SQ002..y[i], t$matching1N2.SQ004_SQ002..y[i], t$matching1N2.SQ005_SQ002..y[i]))
+  matchingL[[3]]<- rbind(
+    cbind(t$matching1N3.SQ001_SQ001..y[i], t$matching1N3.SQ002_SQ001..y[i], t$matching1N3.SQ003_SQ001..y[i], t$matching1N3.SQ004_SQ001..y[i], t$matching1N3.SQ005_SQ001..y[i]),
+    cbind(t$matching1N3.SQ001_SQ002..y[i], t$matching1N3.SQ002_SQ002..y[i], t$matching1N3.SQ003_SQ002..y[i], t$matching1N3.SQ004_SQ002..y[i], t$matching1N3.SQ005_SQ002..y[i]),
+    cbind(t$matching1N3.SQ001_SQ003..y[i], t$matching1N3.SQ002_SQ003..y[i], t$matching1N3.SQ003_SQ003..y[i], t$matching1N3.SQ004_SQ003..y[i], t$matching1N3.SQ005_SQ003..y[i]))
+  matchingL[[4]]<- rbind(
+    cbind(t$matching1N4.SQ001_SQ001..y[i], t$matching1N4.SQ002_SQ001..y[i], t$matching1N4.SQ003_SQ001..y[i], t$matching1N4.SQ004_SQ001..y[i], t$matching1N4.SQ005_SQ001..y[i]),
+    cbind(t$matching1N4.SQ001_SQ002..y[i], t$matching1N4.SQ002_SQ002..y[i], t$matching1N4.SQ003_SQ002..y[i], t$matching1N4.SQ004_SQ002..y[i], t$matching1N4.SQ005_SQ002..y[i]),
+    cbind(t$matching1N4.SQ001_SQ003..y[i], t$matching1N4.SQ002_SQ003..y[i], t$matching1N4.SQ003_SQ003..y[i], t$matching1N4.SQ004_SQ003..y[i], t$matching1N4.SQ005_SQ003..y[i]),
+    cbind(t$matching1N4.SQ001_SQ004..y[i], t$matching1N4.SQ002_SQ004..y[i], t$matching1N4.SQ003_SQ004..y[i], t$matching1N4.SQ004_SQ004..y[i], t$matching1N4.SQ005_SQ004..y[i]))
+  matchingL[[5]]<- rbind(
+    cbind(t$matching1N5.SQ001_SQ001..y[i], t$matching1N5.SQ002_SQ001..y[i], t$matching1N5.SQ003_SQ001..y[i], t$matching1N5.SQ004_SQ001..y[i], t$matching1N5.SQ005_SQ001..y[i]),
+    cbind(t$matching1N5.SQ001_SQ002..y[i], t$matching1N5.SQ002_SQ002..y[i], t$matching1N5.SQ003_SQ002..y[i], t$matching1N5.SQ004_SQ002..y[i], t$matching1N5.SQ005_SQ002..y[i]),
+    cbind(t$matching1N5.SQ001_SQ003..y[i], t$matching1N5.SQ002_SQ003..y[i], t$matching1N5.SQ003_SQ003..y[i], t$matching1N5.SQ004_SQ003..y[i], t$matching1N5.SQ005_SQ003..y[i]),
+    cbind(t$matching1N5.SQ001_SQ004..y[i], t$matching1N5.SQ002_SQ004..y[i], t$matching1N5.SQ003_SQ004..y[i], t$matching1N5.SQ004_SQ004..y[i], t$matching1N5.SQ005_SQ004..y[i]),
+    cbind(t$matching1N5.SQ001_SQ005..y[i], t$matching1N5.SQ002_SQ005..y[i], t$matching1N5.SQ003_SQ005..y[i], t$matching1N5.SQ004_SQ005..y[i], t$matching1N5.SQ005_SQ005..y[i]))
+  matchingList[[i]] <- matchingL
+} # so... matchingL[[1]][[5]] is matchingmatrix 5 (i.e., 5 alters named in egonet2) for ego 1
+
+# the combination of the matching matrices and the netsizes for ego allows me to match the names myself.
+for (i in 1:length(matchingList)) {     # for ego i
+  mL <- matchingList[[i]]               # get the matching list
+  ns <- ns2[[i]]                        # get the size of egonet2
+  if(ns>0) {                            # if ns=0, no matching was done!
+    mm <- as.matrix(mL[[ns]])           # retrieve the corresponding matrix
+    matched <- which(mm==1, arr.ind=T)  # retrieve array indices
+    net <- net2[i,]
+    if(length(matched)>0) {             # if matching was performed!
+      alterL[[i]]$name2[which(alterL[[i]]$alterid==matched[,2])] <- net[matched[,1]]
+    }
+  }#ignore warnings..
+}
+
+# again, make a matching list for the second matching matrices
+# (i.e., matching egonet3 alters to prev. alters);
+matchingList2 <- list()
+for (i in 1:length(alterL)) { # for ego i
+  matching2L <- list()
+  matching2L[[1]] <- cbind(t$matching2N1.SQ001_SQ001..y[i],t$matching2N1.SQ002_SQ001..y[i],t$matching2N1.SQ003_SQ001..y[i],t$matching2N1.SQ004_SQ001..y[i],t$matching2N1.SQ005_SQ001..y[i],t$matching2N1.SQ006_SQ001..y[i],t$matching2N1.SQ007_SQ001..y[i],t$matching2N1.SQ008_SQ001..y[i],t$matching2N1.SQ009_SQ001..y[i],t$matching2N1.SQ010_SQ001..y[i])
+  matching2L[[2]] <- rbind(
+    cbind(t$matching2N2.SQ001_SQ001..y[i],t$matching2N2.SQ002_SQ001..y[i],t$matching2N2.SQ003_SQ001..y[i],t$matching2N2.SQ004_SQ001..y[i],t$matching2N2.SQ005_SQ001..y[i],t$matching2N2.SQ006_SQ001..y[i],t$matching2N2.SQ007_SQ001..y[i],t$matching2N2.SQ008_SQ001..y[i],t$matching2N2.SQ009_SQ001..y[i],t$matching2N2.SQ010_SQ001..y[i]),
+    cbind(t$matching2N2.SQ001_SQ002..y[i],t$matching2N2.SQ002_SQ002..y[i],t$matching2N2.SQ003_SQ002..y[i],t$matching2N2.SQ004_SQ002..y[i],t$matching2N2.SQ005_SQ002..y[i],t$matching2N2.SQ006_SQ002..y[i],t$matching2N2.SQ007_SQ002..y[i],t$matching2N2.SQ008_SQ002..y[i],t$matching2N2.SQ009_SQ002..y[i],t$matching2N2.SQ010_SQ002..y[i]))
+  matching2L[[3]] <- rbind(
+    cbind(t$matching2N3.SQ001_SQ001..y[i],t$matching2N3.SQ002_SQ001..y[i],t$matching2N3.SQ003_SQ001..y[i],t$matching2N3.SQ004_SQ001..y[i],t$matching2N3.SQ005_SQ001..y[i],t$matching2N3.SQ006_SQ001..y[i],t$matching2N3.SQ007_SQ001..y[i],t$matching2N3.SQ008_SQ001..y[i],t$matching2N3.SQ009_SQ001..y[i],t$matching2N3.SQ010_SQ001..y[i]),
+    cbind(t$matching2N3.SQ001_SQ002..y[i],t$matching2N3.SQ002_SQ002..y[i],t$matching2N3.SQ003_SQ002..y[i],t$matching2N3.SQ004_SQ002..y[i],t$matching2N3.SQ005_SQ002..y[i],t$matching2N3.SQ006_SQ002..y[i],t$matching2N3.SQ007_SQ002..y[i],t$matching2N3.SQ008_SQ002..y[i],t$matching2N3.SQ009_SQ002..y[i],t$matching2N3.SQ010_SQ002..y[i]),
+    cbind(t$matching2N3.SQ001_SQ003..y[i],t$matching2N3.SQ002_SQ003..y[i],t$matching2N3.SQ003_SQ003..y[i],t$matching2N3.SQ004_SQ003..y[i],t$matching2N3.SQ005_SQ003..y[i],t$matching2N3.SQ006_SQ003..y[i],t$matching2N3.SQ007_SQ003..y[i],t$matching2N3.SQ008_SQ003..y[i],t$matching2N3.SQ009_SQ003..y[i],t$matching2N3.SQ010_SQ003..y[i]))
+  matching2L[[4]] <- rbind(
+    cbind(t$matching2N4.SQ001_SQ001..y[i],t$matching2N4.SQ002_SQ001..y[i],t$matching2N4.SQ003_SQ001..y[i],t$matching2N4.SQ004_SQ001..y[i],t$matching2N4.SQ005_SQ001..y[i],t$matching2N4.SQ006_SQ001..y[i],t$matching2N4.SQ007_SQ001..y[i],t$matching2N4.SQ008_SQ001..y[i],t$matching2N4.SQ009_SQ001..y[i],t$matching2N4.SQ010_SQ001..y[i]),
+    cbind(t$matching2N4.SQ001_SQ002..y[i],t$matching2N4.SQ002_SQ002..y[i],t$matching2N4.SQ003_SQ002..y[i],t$matching2N4.SQ004_SQ002..y[i],t$matching2N4.SQ005_SQ002..y[i],t$matching2N4.SQ006_SQ002..y[i],t$matching2N4.SQ007_SQ002..y[i],t$matching2N4.SQ008_SQ002..y[i],t$matching2N4.SQ009_SQ002..y[i],t$matching2N4.SQ010_SQ002..y[i]),
+    cbind(t$matching2N4.SQ001_SQ003..y[i],t$matching2N4.SQ002_SQ003..y[i],t$matching2N4.SQ003_SQ003..y[i],t$matching2N4.SQ004_SQ003..y[i],t$matching2N4.SQ005_SQ003..y[i],t$matching2N4.SQ006_SQ003..y[i],t$matching2N4.SQ007_SQ003..y[i],t$matching2N4.SQ008_SQ003..y[i],t$matching2N4.SQ009_SQ003..y[i],t$matching2N4.SQ010_SQ003..y[i]),
+    cbind(t$matching2N4.SQ001_SQ004..y[i],t$matching2N4.SQ002_SQ004..y[i],t$matching2N4.SQ003_SQ004..y[i],t$matching2N4.SQ004_SQ004..y[i],t$matching2N4.SQ005_SQ004..y[i],t$matching2N4.SQ006_SQ004..y[i],t$matching2N4.SQ007_SQ004..y[i],t$matching2N4.SQ008_SQ004..y[i],t$matching2N4.SQ009_SQ004..y[i],t$matching2N4.SQ010_SQ004..y[i]))
+  matching2L[[5]] <- rbind(
+    cbind(t$matching2N5.SQ001_SQ001..y[i],t$matching2N5.SQ002_SQ001..y[i],t$matching2N5.SQ003_SQ001..y[i],t$matching2N5.SQ004_SQ001..y[i],t$matching2N5.SQ005_SQ001..y[i],t$matching2N5.SQ006_SQ001..y[i],t$matching2N5.SQ007_SQ001..y[i],t$matching2N5.SQ008_SQ001..y[i],t$matching2N5.SQ009_SQ001..y[i],t$matching2N5.SQ010_SQ001..y[i]),
+    cbind(t$matching2N5.SQ001_SQ002..y[i],t$matching2N5.SQ002_SQ002..y[i],t$matching2N5.SQ003_SQ002..y[i],t$matching2N5.SQ004_SQ002..y[i],t$matching2N5.SQ005_SQ002..y[i],t$matching2N5.SQ006_SQ002..y[i],t$matching2N5.SQ007_SQ002..y[i],t$matching2N5.SQ008_SQ002..y[i],t$matching2N5.SQ009_SQ002..y[i],t$matching2N5.SQ010_SQ002..y[i]),
+    cbind(t$matching2N5.SQ001_SQ003..y[i],t$matching2N5.SQ002_SQ003..y[i],t$matching2N5.SQ003_SQ003..y[i],t$matching2N5.SQ004_SQ003..y[i],t$matching2N5.SQ005_SQ003..y[i],t$matching2N5.SQ006_SQ003..y[i],t$matching2N5.SQ007_SQ003..y[i],t$matching2N5.SQ008_SQ003..y[i],t$matching2N5.SQ009_SQ003..y[i],t$matching2N5.SQ010_SQ003..y[i]),
+    cbind(t$matching2N5.SQ001_SQ004..y[i],t$matching2N5.SQ002_SQ004..y[i],t$matching2N5.SQ003_SQ004..y[i],t$matching2N5.SQ004_SQ004..y[i],t$matching2N5.SQ005_SQ004..y[i],t$matching2N5.SQ006_SQ004..y[i],t$matching2N5.SQ007_SQ004..y[i],t$matching2N5.SQ008_SQ004..y[i],t$matching2N5.SQ009_SQ004..y[i],t$matching2N5.SQ010_SQ004..y[i]),
+    cbind(t$matching2N5.SQ001_SQ005..y[i],t$matching2N5.SQ002_SQ005..y[i],t$matching2N5.SQ003_SQ005..y[i],t$matching2N5.SQ004_SQ005..y[i],t$matching2N5.SQ005_SQ005..y[i],t$matching2N5.SQ006_SQ005..y[i],t$matching2N5.SQ007_SQ005..y[i],t$matching2N5.SQ008_SQ005..y[i],t$matching2N5.SQ009_SQ005..y[i],t$matching2N5.SQ010_SQ005..y[i]))
+  matchingList2[[i]] <- matching2L
+}
+
+for (i in 1:length(matchingList2)) {    # for ego i
+  mL <- matchingList2[[i]]              # get the matching list 2
+  ns <- ns3[[i]]                        # get the size of egonet3
+  if(ns>0) {                            # if ns=0, no matching was done!
+    mm <- as.matrix(mL[[ns]])           # and the corresponding matrix
+    matched <- which(mm==1, arr.ind=T)  # retrieve array indices
+    net <- net3[i,]
+    if(length(matched)>0) {             # if matching was performed!
+      alterL[[i]]$name3[matched[,2]] <- net[matched[,1]]
+    }
+  }
+}
+
+# same for matching 3 (i.e., egonet4 with egonets 1-3)
+matchingList3 <- list()
+for (i in 1:length(alterL)) { # for ego i
+  matching3L <- list()
+  matching3L[[1]] <- cbind(t$matching3N1.SQ001_SQ001..y[i],t$matching3N1.SQ002_SQ001..y[i],t$matching3N1.SQ003_SQ001..y[i],t$matching3N1.SQ004_SQ001..y[i],t$matching3N1.SQ005_SQ001..y[i],t$matching3N1.SQ006_SQ001..y[i],t$matching3N1.SQ007_SQ001..y[i],t$matching3N1.SQ008_SQ001..y[i],t$matching3N1.SQ009_SQ001..y[i],t$matching3N1.SQ010_SQ001..y[i], t$matching3N1.SQ011_SQ001..y[i], t$matching3N1.SQ012_SQ001..y[i], t$matching3N1.SQ013_SQ001..y[i], t$matching3N1.SQ014_SQ001..y[i], t$matching3N1.SQ015_SQ001..y[i])
+  matching3L[[2]] <- rbind(
+    cbind(t$matching3N2.SQ001_SQ001..y[i],t$matching3N2.SQ002_SQ001..y[i],t$matching3N2.SQ003_SQ001..y[i],t$matching3N2.SQ004_SQ001..y[i],t$matching3N2.SQ005_SQ001..y[i],t$matching3N2.SQ006_SQ001..y[i],t$matching3N2.SQ007_SQ001..y[i],t$matching3N2.SQ008_SQ001..y[i],t$matching3N2.SQ009_SQ001..y[i],t$matching3N2.SQ010_SQ001..y[i], t$matching3N2.SQ011_SQ001..y[i], t$matching3N2.SQ012_SQ001..y[i], t$matching3N2.SQ013_SQ001..y[i], t$matching3N2.SQ014_SQ001..y[i], t$matching3N2.SQ015_SQ001..y[i]),
+    cbind(t$matching3N2.SQ001_SQ002..y[i],t$matching3N2.SQ002_SQ002..y[i],t$matching3N2.SQ003_SQ002..y[i],t$matching3N2.SQ004_SQ002..y[i],t$matching3N2.SQ005_SQ002..y[i],t$matching3N2.SQ006_SQ002..y[i],t$matching3N2.SQ007_SQ002..y[i],t$matching3N2.SQ008_SQ002..y[i],t$matching3N2.SQ009_SQ002..y[i],t$matching3N2.SQ010_SQ002..y[i], t$matching3N2.SQ011_SQ002..y[i], t$matching3N2.SQ012_SQ002..y[i], t$matching3N2.SQ013_SQ002..y[i], t$matching3N2.SQ014_SQ002..y[i], t$matching3N2.SQ015_SQ002..y[i]))
+  matching3L[[3]] <- rbind(
+    cbind(t$matching3N3.SQ001_SQ001..y[i],t$matching3N3.SQ002_SQ001..y[i],t$matching3N3.SQ003_SQ001..y[i],t$matching3N3.SQ004_SQ001..y[i],t$matching3N3.SQ005_SQ001..y[i],t$matching3N3.SQ006_SQ001..y[i],t$matching3N3.SQ007_SQ001..y[i],t$matching3N3.SQ008_SQ001..y[i],t$matching3N3.SQ009_SQ001..y[i],t$matching3N3.SQ010_SQ001..y[i], t$matching3N3.SQ011_SQ001..y[i], t$matching3N3.SQ012_SQ001..y[i], t$matching3N3.SQ013_SQ001..y[i], t$matching3N3.SQ014_SQ001..y[i], t$matching3N3.SQ015_SQ001..y[i]),
+    cbind(t$matching3N3.SQ001_SQ002..y[i],t$matching3N3.SQ002_SQ002..y[i],t$matching3N3.SQ003_SQ002..y[i],t$matching3N3.SQ004_SQ002..y[i],t$matching3N3.SQ005_SQ002..y[i],t$matching3N3.SQ006_SQ002..y[i],t$matching3N3.SQ007_SQ002..y[i],t$matching3N3.SQ008_SQ002..y[i],t$matching3N3.SQ009_SQ002..y[i],t$matching3N3.SQ010_SQ002..y[i], t$matching3N3.SQ011_SQ002..y[i], t$matching3N3.SQ012_SQ002..y[i], t$matching3N3.SQ013_SQ002..y[i], t$matching3N3.SQ014_SQ002..y[i], t$matching3N3.SQ015_SQ002..y[i]),
+    cbind(t$matching3N3.SQ001_SQ003..y[i],t$matching3N3.SQ002_SQ003..y[i],t$matching3N3.SQ003_SQ003..y[i],t$matching3N3.SQ004_SQ003..y[i],t$matching3N3.SQ005_SQ003..y[i],t$matching3N3.SQ006_SQ003..y[i],t$matching3N3.SQ007_SQ003..y[i],t$matching3N3.SQ008_SQ003..y[i],t$matching3N3.SQ009_SQ003..y[i],t$matching3N3.SQ010_SQ003..y[i], t$matching3N3.SQ011_SQ003..y[i], t$matching3N3.SQ012_SQ003..y[i], t$matching3N3.SQ013_SQ003..y[i], t$matching3N3.SQ014_SQ003..y[i], t$matching3N3.SQ015_SQ003..y[i]))
+  matching3L[[4]] <- rbind(
+    cbind(t$matching3N4.SQ001_SQ001..y[i],t$matching3N4.SQ002_SQ001..y[i],t$matching3N4.SQ003_SQ001..y[i],t$matching3N4.SQ004_SQ001..y[i],t$matching3N4.SQ005_SQ001..y[i],t$matching3N4.SQ006_SQ001..y[i],t$matching3N4.SQ007_SQ001..y[i],t$matching3N4.SQ008_SQ001..y[i],t$matching3N4.SQ009_SQ001..y[i],t$matching3N4.SQ010_SQ001..y[i], t$matching3N4.SQ011_SQ001..y[i], t$matching3N4.SQ012_SQ001..y[i], t$matching3N4.SQ013_SQ001..y[i], t$matching3N4.SQ014_SQ001..y[i], t$matching3N4.SQ015_SQ001..y[i]),
+    cbind(t$matching3N4.SQ001_SQ002..y[i],t$matching3N4.SQ002_SQ002..y[i],t$matching3N4.SQ003_SQ002..y[i],t$matching3N4.SQ004_SQ002..y[i],t$matching3N4.SQ005_SQ002..y[i],t$matching3N4.SQ006_SQ002..y[i],t$matching3N4.SQ007_SQ002..y[i],t$matching3N4.SQ008_SQ002..y[i],t$matching3N4.SQ009_SQ002..y[i],t$matching3N4.SQ010_SQ002..y[i], t$matching3N4.SQ011_SQ002..y[i], t$matching3N4.SQ012_SQ002..y[i], t$matching3N4.SQ013_SQ002..y[i], t$matching3N4.SQ014_SQ002..y[i], t$matching3N4.SQ015_SQ002..y[i]),
+    cbind(t$matching3N4.SQ001_SQ003..y[i],t$matching3N4.SQ002_SQ003..y[i],t$matching3N4.SQ003_SQ003..y[i],t$matching3N4.SQ004_SQ003..y[i],t$matching3N4.SQ005_SQ003..y[i],t$matching3N4.SQ006_SQ003..y[i],t$matching3N4.SQ007_SQ003..y[i],t$matching3N4.SQ008_SQ003..y[i],t$matching3N4.SQ009_SQ003..y[i],t$matching3N4.SQ010_SQ003..y[i], t$matching3N4.SQ011_SQ003..y[i], t$matching3N4.SQ012_SQ003..y[i], t$matching3N4.SQ013_SQ003..y[i], t$matching3N4.SQ014_SQ003..y[i], t$matching3N4.SQ015_SQ003..y[i]),
+    cbind(t$matching3N4.SQ001_SQ003..y[i],t$matching3N4.SQ002_SQ003..y[i],t$matching3N4.SQ003_SQ003..y[i],t$matching3N4.SQ004_SQ003..y[i],t$matching3N4.SQ005_SQ003..y[i],t$matching3N4.SQ006_SQ003..y[i],t$matching3N4.SQ007_SQ003..y[i],t$matching3N4.SQ008_SQ003..y[i],t$matching3N4.SQ009_SQ003..y[i],t$matching3N4.SQ010_SQ003..y[i], t$matching3N4.SQ011_SQ003..y[i], t$matching3N4.SQ012_SQ003..y[i], t$matching3N4.SQ013_SQ003..y[i], t$matching3N4.SQ014_SQ003..y[i], t$matching3N4.SQ015_SQ003..y[i]),
+    cbind(t$matching3N4.SQ001_SQ004..y[i],t$matching3N4.SQ002_SQ004..y[i],t$matching3N4.SQ003_SQ004..y[i],t$matching3N4.SQ004_SQ004..y[i],t$matching3N4.SQ005_SQ004..y[i],t$matching3N4.SQ006_SQ004..y[i],t$matching3N4.SQ007_SQ004..y[i],t$matching3N4.SQ008_SQ004..y[i],t$matching3N4.SQ009_SQ004..y[i],t$matching3N4.SQ010_SQ004..y[i], t$matching3N4.SQ011_SQ004..y[i], t$matching3N4.SQ012_SQ004..y[i], t$matching3N4.SQ013_SQ004..y[i], t$matching3N4.SQ014_SQ004..y[i], t$matching3N4.SQ015_SQ004..y[i]))
+  matching3L[[5]] <- rbind(
+    cbind(t$matching3N5.SQ001_SQ001..y[i],t$matching3N5.SQ002_SQ001..y[i],t$matching3N5.SQ003_SQ001..y[i],t$matching3N5.SQ004_SQ001..y[i],t$matching3N5.SQ005_SQ001..y[i],t$matching3N5.SQ006_SQ001..y[i],t$matching3N5.SQ007_SQ001..y[i],t$matching3N5.SQ008_SQ001..y[i],t$matching3N5.SQ009_SQ001..y[i],t$matching3N5.SQ010_SQ001..y[i], t$matching3N5.SQ011_SQ001..y[i], t$matching3N5.SQ012_SQ001..y[i], t$matching3N5.SQ013_SQ001..y[i], t$matching3N5.SQ014_SQ001..y[i], t$matching3N5.SQ015_SQ001..y[i]),
+    cbind(t$matching3N5.SQ001_SQ002..y[i],t$matching3N5.SQ002_SQ002..y[i],t$matching3N5.SQ003_SQ002..y[i],t$matching3N5.SQ004_SQ002..y[i],t$matching3N5.SQ005_SQ002..y[i],t$matching3N5.SQ006_SQ002..y[i],t$matching3N5.SQ007_SQ002..y[i],t$matching3N5.SQ008_SQ002..y[i],t$matching3N5.SQ009_SQ002..y[i],t$matching3N5.SQ010_SQ002..y[i], t$matching3N5.SQ011_SQ002..y[i], t$matching3N5.SQ012_SQ002..y[i], t$matching3N5.SQ013_SQ002..y[i], t$matching3N5.SQ014_SQ002..y[i], t$matching3N5.SQ015_SQ002..y[i]),
+    cbind(t$matching3N5.SQ001_SQ003..y[i],t$matching3N5.SQ002_SQ003..y[i],t$matching3N5.SQ003_SQ003..y[i],t$matching3N5.SQ004_SQ003..y[i],t$matching3N5.SQ005_SQ003..y[i],t$matching3N5.SQ006_SQ003..y[i],t$matching3N5.SQ007_SQ003..y[i],t$matching3N5.SQ008_SQ003..y[i],t$matching3N5.SQ009_SQ003..y[i],t$matching3N5.SQ010_SQ003..y[i], t$matching3N5.SQ011_SQ003..y[i], t$matching3N5.SQ012_SQ003..y[i], t$matching3N5.SQ013_SQ003..y[i], t$matching3N5.SQ014_SQ003..y[i], t$matching3N5.SQ015_SQ003..y[i]),
+    cbind(t$matching3N5.SQ001_SQ003..y[i],t$matching3N5.SQ002_SQ003..y[i],t$matching3N5.SQ003_SQ003..y[i],t$matching3N5.SQ004_SQ003..y[i],t$matching3N5.SQ005_SQ003..y[i],t$matching3N5.SQ006_SQ003..y[i],t$matching3N5.SQ007_SQ003..y[i],t$matching3N5.SQ008_SQ003..y[i],t$matching3N5.SQ009_SQ003..y[i],t$matching3N5.SQ010_SQ003..y[i], t$matching3N5.SQ011_SQ003..y[i], t$matching3N5.SQ012_SQ003..y[i], t$matching3N5.SQ013_SQ003..y[i], t$matching3N5.SQ014_SQ003..y[i], t$matching3N5.SQ015_SQ003..y[i]),
+    cbind(t$matching3N5.SQ001_SQ005..y[i],t$matching3N5.SQ002_SQ005..y[i],t$matching3N5.SQ003_SQ005..y[i],t$matching3N5.SQ004_SQ005..y[i],t$matching3N5.SQ005_SQ005..y[i],t$matching3N5.SQ006_SQ005..y[i],t$matching3N5.SQ007_SQ005..y[i],t$matching3N5.SQ008_SQ005..y[i],t$matching3N5.SQ009_SQ005..y[i],t$matching3N5.SQ010_SQ005..y[i], t$matching3N5.SQ011_SQ005..y[i], t$matching3N5.SQ012_SQ005..y[i], t$matching3N5.SQ013_SQ005..y[i], t$matching3N5.SQ014_SQ005..y[i], t$matching3N5.SQ015_SQ005..y[i]))
+  matchingList3[[i]] <- matching3L
+}
+
+for (i in 1:length(matchingList3)) {    # for ego i
+  mL <- matchingList3[[i]]              # get the matching list 2
+  ns <- ns4[[i]]                        # get the size of egonet4
+  if(ns>0) {                            # if ns=0, no matching was done!
+    mm <- as.matrix(mL[[ns]])           # and the corresponding matrix
+    matched <- which(mm==1, arr.ind=T)  # retrieve array indices
+    net <- net4[i,]
+    if(length(matched)>0) {             # if matching was performed!
+      alterL[[i]]$name4[matched[,2]] <- net[matched[,1]]
+    }
+  }
+}
+
+# make long df with alters in ego,
+# and indicators for 4 egonets;
+df2 <- data.frame(
+  ego=rep(1:length(alterL),each=20),
+  alter=rep(1:20),
+  cdn=NA,
+  study=NA,
+  bff=NA,
+  csn=NA
+)
+
+for (i in unique(df2$ego)) {  
+  for (j in 1:20) { # for alters nested in ego
+    
+    # find out if names denoting alter j appear in the 4 egonets
+    alter <- unlist(alterL[[i]][j,-1], use.names = F) # get names alter j
+    alter <- alter[!is.na(alter)] # exclude NAs
+    cdn <- alter %in% net1[i,]
+    study <- alter %in% net2[i,]
+    bff <- alter %in% net3[i,]
+    csn <- alter %in% net4[i,]
+    # and if so, give alter j score 1 on indicators; 0 otherwise
+    df2$cdn[which(df2$ego==i & df2$alter==j)] <- ifelse("TRUE" %in% cdn, 1, 0)
+    df2$study[which(df2$ego==i & df2$alter==j)] <- ifelse("TRUE" %in% study, 1, 0)
+    df2$bff[which(df2$ego==i & df2$alter==j)] <- ifelse("TRUE" %in% bff, 1, 0)
+    df2$csn[which(df2$ego==i & df2$alter==j)] <- ifelse("TRUE" %in% csn, 1, 0)
+  }
+}
+
+
+# now that i have, for each alter of ego (including duplicates) at t2,
+# the nets to which they belong..
+# i continue with the the w1-w2 matching matrices
+
+# (i also use these matrices to construct a network size measure for t2)
+ns_t2 <- list() # make a list to store ns_t2 in
+
+# we already subsetted the matching matrices (in d)
+
+for (i in unique(df$ego)) {  # for ego i
+  
+  
+  matchingL <- list()  # make a list of matching matrices
+  {
+    matchingL[[1]] <- d[i,2:21]
+    matchingL[[2]] <- d[i,22:41]
+    matchingL[[3]] <- d[i,42:61]
+    matchingL[[4]] <- d[i,62:81]
+    matchingL[[5]] <- d[i,82:101]
+    matchingL[[6]] <- d[i,102:121]
+    matchingL[[7]] <- d[i,122:141]
+    matchingL[[8]] <- d[i,142:161]
+    matchingL[[9]] <- d[i,162:181]
+    matchingL[[10]] <- d[i,182:201]
+    matchingL[[11]] <- d[i,202:221]
+    matchingL[[12]] <- d[i,222:241]
+    matchingL[[13]] <- d[i,242:261]
+    matchingL[[14]] <- d[i,262:281]
+    matchingL[[15]] <- d[i,282:301]
+  }
+  # get netsize of ego i at t1
+  ns <- max(df$alter[which(df$ego==i)])
+  # get the corresponding matrix
+  mm <- matchingL[[ns]]
+  
+  # based on this matrix, i can assess the network size at t2;
+  # count the number of alters that were either matched to t1-alters;
+  # or referred to a new person [so, no empty cells and NAs (i.e., non-existing ties; and duplicates)]
+  
+  nst2 <- unlist(mm, use.names=F) 
+  nst2.nm <- nst2[!is.na(nst2)] # exclude missings 
+  nst2.ne <- nst2.nm[nst2.nm!=""] # exclude empty strings 
+  ns_t2[[i]] <- length(nst2.ne)
+  
+  # extract alter ids
+  ans <- stringr::str_extract_all(mm,"\\(?[0-9,.]+\\)?") 
+  # here, the object refers to the w1-alter j;
+  # and the element indicator in the list refers to the w2-alter 
+  
+  for (j in unique(df$alter[which(df$ego==i)])) { # for alter j,
+ 
+    # to which row/w2-alter was alter j matched?
+    match <- which(ans==j)
+    
+    # and in which networks did this w2-alter belong?
+    nets <- df2[which(df2$ego==i & df2$alter==match),]
+    
+    if(length(match)>0) { # if j was matched to w2-alters...
+      # assign to alter j the networks in which j reappeared
+      df$cdn2[which(df$ego==i & df$alter==j)] <- nets$cdn[1]
+      df$study2[which(df$ego==i & df$alter==j)] <- nets$study[1]
+      df$bff2[which(df$ego==i & df$alter==j)] <- nets$bff[1]
+      df$csn2[which(df$ego==i & df$alter==j)] <- nets$csn[1]
+    }
+  }
+}
+
+# currently; a lot of NAs in the attributes indicating whether alter j was member
+# of the respective networks.
+# those are alters that were not renamed, and thus have no 'chance' to re-appear
+# so, 0s are alters that were once part of a specific network, but re-appeared not
+# in that particular network.
+# naturally, for analyses, NAs can be set to 0.
+
+# set ns_t2
+df$netsize2 <- NA
+for (i in unique(df$ego)) {
+  df$netsize2[which(df$ego==i)] <- ns_t2[[i]]
+}
+
+##################################################################################
+
+# add other variables.....
+# education
+# alter educ was asked in w2.
+# merge the data.
+d <- merge(data, data2, by="email")
+# sort
+d <- data.frame(d[order(d$id.x, decreasing = F), ])
+
+# i asked the education level of all alters, of w1 and w2.
+# i only named w2 alters that were unmatched and new compared to w1.
+# all (unique) w1-alters were listed.
+# d$q0r117.SQ021. - d$q0r117.SQ035. 
+
+for (i in unique(df$ego)) { # for ego i  
+  # subset alter education
+  educj <- cbind(d$q0r117.SQ021.[i],d$q0r117.SQ022.[i],d$q0r117.SQ023.[i],d$q0r117.SQ024.[i],d$q0r117.SQ025.[i],d$q0r117.SQ026.[i],d$q0r117.SQ027.[i],d$q0r117.SQ028.[i],
+                 d$q0r117.SQ029.[i],d$q0r117.SQ030.[i],d$q0r117.SQ031.[i],d$q0r117.SQ032.[i],d$q0r117.SQ033.[i],d$q0r117.SQ034.[i],d$q0r117.SQ035.[i])
+  for (j in unique(df$alter[which(df$ego==i)])) { # for alter j
+    # assign education level
+    df$alter_educ[which(df$ego==i & df$alter==j)] <- educj[j]
+  }
+}
+
+# @RF; for now use 5 categories; later on, perhaps operationalize education in years;
+prim <- c("lagere school", "vmbo, mavo")
+lowsec <- c("mbo")
+highsec <- c( "havo", "vwo / gymnasium")
+lowtert <- "hbo"
+hightert <- "universiteit"
+
+for (i in unique(df$ego)) {
+  for (j in unique(df$alter[which(df$ego==i)])) {
+    
+    df$alter_educ[which(df$ego==i & df$alter==j)] <-
+      ifelse(    
+        df$alter_educ[which(df$ego==i & df$alter==j)] %in% prim, 1,
+        ifelse(df$alter_educ[which(df$ego==i & df$alter==j)] %in% lowsec, 2,
+               ifelse(df$alter_educ[which(df$ego==i & df$alter==j)] %in% highsec, 3,
+                      ifelse( df$alter_educ[which(df$ego==i & df$alter==j)] %in% lowtert, 4, 
+                              ifelse(  df$alter_educ[which(df$ego==i & df$alter==j)] %in% hightert, 5,
+                                       NA)))))
+  }
+}
+df$alter_educ <- as.numeric(df$alter_educ)
+# ego educ
+df$ego_educ <- ifelse(df$ego_educ=="hbo", 4, 5)
+
+# @RF. educ in years similarity could be defined as absolute difference
+# since i am now dealing with categories, i use a "same" measure to measure educational similarity.
+df$sim_educ <- ifelse(df$ego_educ==df$alter_educ, 1, 0) # do not know (missing), here treated as dissimilar
+
+# and add tie strength, duration, physical proximity
+df$duration <- NA
+df$proximity <- NA
+df$frequency <- NA
+df$closeness <- NA
+
+for (i in unique(df$ego)) {
+  dur <- cbind(data$duur.SQ001.[i], data$duur.SQ002.[i], data$duur.SQ003.[i], data$duur.SQ004.[i], data$duur.SQ005.[i],
+               data$duur.SQ006.[i], data$duur.SQ007.[i], data$duur.SQ008.[i], data$duur.SQ009.[i], data$duur.SQ010.[i],
+               data$duur.SQ011.[i], data$duur.SQ012.[i], data$duur.SQ013.[i], data$duur.SQ014.[i], data$duur.SQ015.[i],
+               data$duur.SQ016.[i], data$duur.SQ017.[i], data$duur.SQ018.[i], data$duur.SQ019.[i], data$duur.SQ020.[i])
+  dur <- dur[!dur==""]
+  
+  prox <- cbind(data$prox.SQ001.[i], data$prox.SQ002.[i], data$prox.SQ003.[i], data$prox.SQ004.[i], data$prox.SQ005.[i],
+                data$prox.SQ006.[i], data$prox.SQ007.[i], data$prox.SQ008.[i], data$prox.SQ009.[i], data$prox.SQ010.[i],
+                data$prox.SQ011.[i], data$prox.SQ012.[i], data$prox.SQ013.[i], data$prox.SQ014.[i], data$prox.SQ015.[i],
+                data$prox.SQ016.[i], data$prox.SQ017.[i], data$prox.SQ018.[i], data$prox.SQ019.[i], data$prox.SQ020.[i])
+  prox <- prox[!prox==""]
+  
+  freq <- cbind(data$freq.SQ001.[i], data$freq.SQ002.[i], data$freq.SQ003.[i], data$freq.SQ004.[i], data$freq.SQ005.[i],
+                data$freq.SQ006.[i], data$freq.SQ007.[i], data$freq.SQ008.[i], data$freq.SQ009.[i], data$freq.SQ010.[i],
+                data$freq.SQ011.[i], data$freq.SQ012.[i], data$freq.SQ013.[i], data$freq.SQ014.[i], data$freq.SQ015.[i],
+                data$freq.SQ016.[i], data$freq.SQ017.[i], data$freq.SQ018.[i], data$freq.SQ019.[i], data$freq.SQ020.[i])
+  freq <- freq[!freq==""]
+  
+  close <- cbind(data$close.SQ001.[i], data$close.SQ002.[i], data$close.SQ003.[i], data$close.SQ004.[i], data$close.SQ005.[i],
+                 data$close.SQ006.[i], data$close.SQ007.[i], data$close.SQ008.[i], data$close.SQ009.[i], data$close.SQ010.[i],
+                 data$close.SQ011.[i], data$close.SQ012.[i], data$close.SQ013.[i], data$close.SQ014.[i], data$close.SQ015.[i],
+                 data$close.SQ016.[i], data$close.SQ017.[i], data$close.SQ018.[i], data$close.SQ019.[i], data$close.SQ020.[i])
+  close <- close[!close==""]
+  
+  
+  for (j in unique(df$alter[which(df$ego==i)])) {
+    df$duration[which(df$ego==i & df$alter==j)] <- dur[j]
+    df$proximity[which(df$ego==i & df$alter==j)] <- prox[j]
+    df$frequency[which(df$ego==i & df$alter==j)] <- freq[j]
+    df$closeness[which(df$ego==i & df$alter==j)] <- close[j]
+  }
+}
+
+# recode
+# duration; take midpoint on scale.
+df$duration <- ifelse(df$duration=="Minder dan 1 jaar", 0, 
+                      ifelse(df$duration=="1 tot 3 jaar", 2,
+                             ifelse(df$duration=="4 tot 8 jaar", 6,
+                                    ifelse(df$duration=="9 tot 15 jaar", 12,
+                                           ifelse(df$duration=="Meer dan 15 jaar", 15, NA)))))
+# proximity: same municipality or closer.............
+df$proximity <- ifelse(df$proximity=="In de-zelfde buurt" |
+                         df$proximity=="In de-zelfde straat" |
+                         df$proximity=="In dezelfde ge-meente" |
+                         df$proximity=="In het-zelfde huis", 1, 0)
+
+# frequency: at least once a week?
+# for now, we make an ordinal variable; as this is needed for the dynamic dyadic
+# change variable (see below)
+df$frequency <- ifelse(df$frequency=="(Bijna) elke dag",7,
+                       ifelse(df$frequency=="1-2 keer per week",6,
+                              ifelse(df$frequency=="Aantal keer per maand",5, 
+                                     ifelse(df$frequency=="Ong. 1 keer per maand",4, 
+                                            ifelse(df$frequency=="Aantal keer per jaar",3,
+                                                   ifelse(df$frequency=="Ong. 1 keer per jaar",2,
+                                                          ifelse(df$frequency=="Nooit",1, NA   )))))))
+# closeness: an ordinal scale 1-4
+df$closeness <- ifelse(df$closeness=="Niet hecht", 1, 
+                       ifelse(df$closeness=="Enigszins hecht", 2,
+                              ifelse(df$closeness=="Hecht", 3,
+                                     ifelse(df$closeness=="Heel erg hecht", 4, NA
+                                     ))))
+
+# an inherent flaw of the name-generator approach is that it may overestimate
+# the true rate of alters being dropped (see the work by Fischer and Offer).
+# i use a second, dynamic tie-change indicator (also suggestd by Marin and Hampton 2019)
+# based on a change in ego's emotional connection and contact frequency with alter
+# i have these name interpreter info on alters at w2, 
+# also on those who were NOT re-named (that is, dropped alters)
+# name interpreter questions 21-35 are about (unique) w1-alters
+df$maintained_freq <- NA
+df$maintained_close <- NA
+
+# @RF: think about how to define this change;
+# for now, i use the simplest definition, that is a reduction in frequency/
+# closeness (yes or no); this also means that the same analyses (logistic) can
+# be used.
+# naturally, this can be defined in a more continuous fashion
+
+# subset w2 name interpreters on contact freq. and closeness
+# include email, for merging
+w2 <- data2[,c(992:1006, 1027:1041, 1427)]
+
+# subset id and email w1
+d <- data[,c(1,ncol(data))]
+
+# merge the data-set with the name interpreter data
+d <- merge(w2, d, by="email")
+
+# sort by the id variable, so that the ordening of responses is the same as our
+# long dataframe
+d <- data.frame(d[order(d$id, decreasing = F), ])
+# and reorder rownames
+rownames(d) <- 1:length(rownames(d))
+# exclude id and email (rownumber corresponds to id)
+(d<-d[,-c(1,ncol(d))])
+
+# frequency
+# subset
+freq <- d[,1:15]
+# recode into ordinal values; so that i can assess change
+freq <- ifelse(freq=="(Bijna) elke dag",7,
+               ifelse(freq=="1-2 keer per week",6,
+                      ifelse(freq=="Aantal keer per maand",5, 
+                             ifelse(freq=="Ong. 1 keer per maand",4, 
+                                    ifelse(freq=="Aantal keer per jaar",3,
+                                           ifelse(freq=="Ong. 1 keer per jaar",2,
+                                                  ifelse(freq=="Nooit",1, NA   )))))))
+# Note that there may be both 'structural NAs' (non-named alters)
+# as well as 'real' missings (when alter "did not know")!
+# they are curently both coded as NA
+
+# closeness
+# subset
+close <- d[,16:ncol(d)]
+# recode
+close <- ifelse(close=="Niet hecht", 1, 
+                ifelse(close=="Enigszins hecht", 2,
+                       ifelse(close=="Hecht", 3,
+                              ifelse(close=="Heel erg hecht", 4, NA
+                              ))))
+# only 'structural NAs' here.
+
+
+for ( i in unique(df$ego))  { # for ego i
+  # get tie variables with alters j1-jN
+  # at both time points
+  
+  # frequency of contact
+  freqs1 <- df$frequency[which(df$ego==i)]
+  freqs2 <- as.numeric(freq[i, ])
+  # note that here both 'real' and structural missings are included
+  # instead of removing all missings; we take element 1:length(freqs1)
+  # hence only removing structural NAs
+  freqs2 <- freqs2[1:length(freqs1)]
+  
+  # emotional closeness
+  close1 <- df$closeness[which(df$ego==i)]
+  close2 <- as.numeric(close[i, ])
+  # here, remove nonmissings
+  close2 <- close2[!is.na(close2)]
+  
+  for (j in unique(df$alter[which(df$ego==i)])) { # for alter j
+    
+    # get contact frequency at t1 and t2
+    freq_t1 <- freqs1[j]
+    freq_t2 <- freqs2[j]
+    
+    # same for closeness
+    close_t1 <- close1[j]
+    close_t2 <- close2[j]
+    
+    # if t2 values are equal/greater than t1 values, 
+    # give value 1 (i.e., maintained); 0 oterwise.
+    df$maintained_freq[which(df$ego==i & df$alter==j)] <- ifelse(freq_t2>=freq_t1, 1,0 )
+    df$maintained_close[which(df$ego==i & df$alter==j)] <- ifelse(close_t2>=close_t1, 1,0 )
+    
+  }
+}
+# @RF: SOME MISSINGS REMAIN ON THE TIE-CHANGE VARIABLES! WHY? SHOULD NOT HAPPEN!
+# i figured it out... it is because some egos "did not know".... 
+# only the case for frequency
+
+
+# recode contact frequency: 1 if at least once a week; 0 otherwise
+df$frequency <- ifelse(df$frequency>5, 1,0)
+
+# remove last 2 egos (fake responses).
+df <- df[-which(df$ego==91 | df$ego==92, arr.ind=T), ]
+
+# convert everything to numeric..
+df[] <- lapply(df, as.numeric)
+
+fix(df)
+
+###########################################################
+
+# add density as a network attribute
+# and embeddedness for alters
+
+
+# density: ratio of extant ties to potential ties 
+# i asked about ties between alters WITHIN each separate egonet;
+# but not between the alters of different egonets;
+# i could, of course, make an adjacency matrix myself;
+# based on the matching matrices
+# ties between alters can be either 1 (extant), 0 (absent), or NA (when
+# alters were not in the same egonet...)
+# i may consider tie values ( some sort of weighted density...)
+
+
+
+
+# i asked about the connection between alters, within each egonet
+# unfortunately, not a adjacency matrix with all unique alters...
+# but... i could of course make this myself, based on the matching matrices
+# ....
+
+# embeddedness
+# ratio of extant ties of alter to other alters to potential ties of alter 
+# to other alters.
+# here, for each alter; identify potential other alters to whom they may be
+# tied. figure out whether the tie is present (tie within or across networks)/
+# absent (same network but no tie)/ missing (not in same networks; thus no tie)
+
+
+
+
+
+# save the dataset...
+#save(df, file = "tie_maintenance.RData")
